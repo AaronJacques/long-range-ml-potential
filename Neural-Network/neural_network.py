@@ -1,9 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, concatenate, Dense
+from tensorflow.keras.layers import Input, Embedding, concatenate, Dens
 
-
-def
 
 def get_embedding(s, species1, species2, M1=32, embedding_size=10):
     num_distance_vectors = len(s)
@@ -30,8 +28,8 @@ def get_embedding(s, species1, species2, M1=32, embedding_size=10):
     merged_layer = concatenate([flatten_layer_atom1, flatten_layer_atom2, input_distance_vector])
 
     # Define the dense layers for further processing
-    dense_layer1 = Dense(4*M1, activation='relu')(merged_layer)
-    dense_layer2 = Dense(2*M1, activation='relu')(dense_layer1)
+    dense_layer1 = Dense(4 * M1, activation='relu')(merged_layer)
+    dense_layer2 = Dense(2 * M1, activation='relu')(dense_layer1)
 
     # Output layer
     return Dense(M1, activation='linear', name='output')(dense_layer2)
