@@ -56,6 +56,17 @@ class GridPoint:
                 self.neighbour_tree[level] = []
             self.neighbour_tree[level].append(grid_point)
 
+    # get the sum of the atomic numbers of the grid point
+    def get_atomic_number_sum(self):
+        return np.sum([atom.number for atom in self.atoms])
+
+    # get the center of mass of the grid point
+    # weighted by the atomic numbers
+    def get_center_of_mass(self):
+        total_mass = self.get_atomic_number_sum()
+        total_mass_position = np.sum([atom.number * atom.position for atom in self.atoms], axis=0)
+        return total_mass_position / total_mass
+
 
 def create_grid(atoms, grid_size):
     # Determine the grid boundaries
@@ -77,4 +88,49 @@ def create_grid(atoms, grid_size):
         grid_point.add_neighbours(grid)
 
     return list(grid.values())
+
+
+# creating the distance matrix of a list of grid points
+# the distance matrix for one atom of a grid point has the shape (N, 3)
+# the function returns a list of distance matrix for all atoms of all grid points
+# and the corresponding list of atomic numbers of the atoms in the distance matrix (N, 2)
+def create_distance_matrices(grid_points):
+    # create the distance matrix
+    distance_matrices = []
+    atomic_numbers = []
+    for i, grid_point in tqdm(enumerate(grid_points), total=len(grid_points), desc="Creating distance matrix"):
+        # loop over all atoms in the grid point
+        for current_atom in grid_point.atoms:
+            # TODO: Use NumPy instead of Python lists and calculate the number of distance vectors beforehand
+            distance_matrix = []
+            # list of lists of the form [atom_number_1, atom_number_2
+            # where atom_number_1 is the atomic number of the current atom and
+            # atom_number_2 is the atomic number of the atom in the distance vector
+            current_atom_numbers = []
+
+            for level, neighbours in grid_point.neighbour_tree.items():
+                if level < 2:
+                    # for level 0 and 1 we calculate the distance to all atoms directly
+                    for neighbour in neighbours:
+                        for atom in neighbour.atoms:
+                            # calculate the distance between the two atoms
+                            distance_matrix.append(current_atom.position - atom.position)
+                            # add the atomic numbers to the list
+                            current_atom_numbers.append([current_atom.number, atom.number])
+
+                else:
+                    # for all other levels we calculate the distance to the center of mass
+                    for neighbour in neighbours:
+                        # calculate the distance between the two atoms
+                        distance_matrix.append(current_atom.position - neighbour.get_center_of_mass())
+                        # add the atomic numbers to the list
+                        current_atom_numbers.append([current_atom.number, neighbour.get_atomic_number_sum()])
+
+            # append the distance matrix to the list of distance matrices
+            distance_matrices.append(np.array(distance_matrix))
+            # append the atomic numbers to the list of atomic numbers
+            atomic_numbers.append(np.array(current_atom_numbers))
+
+    return distance_matrices, atomic_numbers
+
 
