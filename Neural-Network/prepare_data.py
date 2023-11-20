@@ -113,6 +113,10 @@ def create_distance_matrices(grid_points):
                     # for level 0 and 1 we calculate the distance to all atoms directly
                     for neighbour in neighbours:
                         for atom in neighbour.atoms:
+                            # skip the current atom
+                            if current_atom == atom:
+                                continue
+
                             # calculate the distance between the two atoms
                             distance_matrix.append(current_atom.position - atom.position)
                             # add the atomic numbers to the list
@@ -134,3 +138,22 @@ def create_distance_matrices(grid_points):
     return distance_matrices, atomic_numbers
 
 
+# create the expanded distance matrix
+# the expanded distance matrix has the shape (N, 4) where N is the number of distance vectors
+# it contains the normalized distance vector and the inverse of the distance
+def create_expanded_distance_matrix(distance_matrices):
+    expanded_distance_matrices = []
+    for i, distance_matrix in tqdm(enumerate(distance_matrices), total=len(distance_matrices),
+                                   desc="Creating expanded distance matrix"):
+
+        # calculate the inverse of the distance
+        inverse_distance = np.linalg.norm(distance_matrix, axis=1)
+        inverse_distance[inverse_distance == 0] = 1
+
+        # normalize the distance matrix
+        normalized_distance_matrix = distance_matrix / inverse_distance[:, None]
+
+        # append the normalized distance matrix and the inverse of the distance to the list
+        expanded_distance_matrices.append(np.concatenate([inverse_distance[:, None], normalized_distance_matrix], axis=1))
+
+    return expanded_distance_matrices
