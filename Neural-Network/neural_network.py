@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, concatenate, Dens
+from tensorflow.keras.layers import Input, Embedding, concatenate, Dense, Flatten
 
 
 def get_embedding(s, species1, species2, M1=32, embedding_size=10):
