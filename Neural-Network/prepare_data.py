@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
-import ase
 from ase import Atoms, Atom
+from Constants import Keys, Dataset
 
 
 def deserialize_df(df):
@@ -18,7 +18,7 @@ def filter_out_single_atom_molecules(df):
 
 
 class GridCell:
-    def __init__(self, grid_index, atoms, max_atom_elements=100):
+    def __init__(self, grid_index, atoms):
         self.grid_index = grid_index
         self.atoms = atoms
         # each grid cell has a dictionary of neighbour trees
@@ -26,7 +26,7 @@ class GridCell:
         # is a list of grid cells at that level
         # level: 0 is direct neighbours, 1 is second-degree neighbours, etc.
         self.neighbour_tree = {}
-        self.max_atom_elements = max_atom_elements
+        self.max_atom_elements = Dataset.MAX_ATOM_ELEMENTS
         self.atomic_features = self.__create_atomic_features()
 
     def __eq__(self, other):
@@ -37,15 +37,15 @@ class GridCell:
 
     def __str__(self):
         atoms_str = ", ".join([str(atom) for atom in self.atoms])
-        return f"GridPoint(index: {self.grid_index}, atoms: {atoms_str})"
+        return f"GridCell(index: {self.grid_index}, atoms: {atoms_str})"
 
     def __repr__(self):
         return self.__str__()
 
     def __create_atomic_features(self):
-        atomic_features = np.zeros(self.max_atom_elements)
+        atomic_features = np.zeros(self.max_atom_elements, dtype=int)
         for i, atom in enumerate(self.atoms):
-            if i >= self.max_atom_elements:
+            if atom.number > self.max_atom_elements:
                 continue
             atomic_features[atom.number - 1] += 1
         return atomic_features
@@ -53,6 +53,9 @@ class GridCell:
     # add an atom to the grid cell
     def add_atom(self, atom):
         self.atoms.append(atom)
+        # add the atomic number to the atomic features
+        if atom.number <= self.max_atom_elements:
+            self.atomic_features[atom.number - 1] += 1
 
     # generate neighbour tree
     # The node is the current grid cell.
@@ -112,56 +115,6 @@ def create_grid(atoms, grid_size):
     return list(grid.values())
 
 
-# creating the distance matrix of a list of grid cells
-# the distance matrix for one atom of a grid cell has the shape (N, 3)
-# the function returns a list of distance matrix for all atoms of all grid cells
-# and the corresponding list of atomic numbers of the reference atom with shape (N)
-# the
-def create_distance_matrices(grid_points):
-    # create the distance matrix
-    distance_matrices = []
-    atomic_features = []
-    atomic_numbers = []
-    for i, grid_point in enumerate(grid_points):
-        # loop over all atoms in the grid cell
-        for current_atom in grid_point.atoms:
-            # TODO: Use NumPy instead of Python lists and calculate the number of distance vectors beforehand
-            distance_matrix = []
-            # list of lists of the form [atom_number_1, atom_number_2
-            # where atom_number_1 is the atomic number of the current atom and
-            # atom_number_2 is the atomic number of the atom in the distance vector
-            current_atom_numbers = []
-
-            for level, neighbours in grid_point.neighbour_tree.items():
-                if level < 2:
-                    # for level 0 and 1 we calculate the distance to all atoms directly
-                    for neighbour in neighbours:
-                        for atom in neighbour.atoms:
-                            # skip the current atom
-                            if current_atom == atom:
-                                continue
-
-                            # calculate the distance between the two atoms
-                            distance_matrix.append(current_atom.position - atom.position)
-                            # add the atomic numbers to the list
-                            current_atom_numbers.append([current_atom.number, atom.number])
-
-                else:
-                    # for all other levels we calculate the distance to the center of mass
-                    for neighbour in neighbours:
-                        # calculate the distance between the two atoms
-                        distance_matrix.append(current_atom.position - neighbour.get_center_of_mass())
-                        # add the atomic numbers to the list
-                        current_atom_numbers.append([current_atom.number, neighbour.get_atomic_number_sum()])
-
-            # append the distance matrix to the list of distance matrices
-            distance_matrices.append(np.array(distance_matrix))
-            # append the atomic numbers to the list of atomic numbers
-            atomic_numbers.append(np.array(current_atom_numbers))
-
-    return distance_matrices, np.array(atomic_numbers)
-
-
 # create the expanded distance matrix
 # the expanded distance matrix has the shape (N, 4) where N is the number of distance vectors
 # it contains the normalized distance vector and the inverse of the distance
@@ -179,17 +132,129 @@ def create_expanded_distance_matrix(distance_matrices):
         # append the normalized distance matrix and the inverse of the distance to the list
         expanded_distance_matrices.append(np.concatenate([inverse_distance[:, None], normalized_distance_matrix], axis=1))
 
-    return np.array(expanded_distance_matrices)
+    return expanded_distance_matrices
 
 
-def get_expanded_distance_matrix(atoms, grid_size):
-    # create the grid
-    grid_points = create_grid(atoms, grid_size)
-
+# creating the distance matrix of a list of grid cells
+# the distance matrix for one atom of a grid cell has the shape (N, 3)
+# the function returns a list of distance matrix for all atoms of all grid cells
+# and the corresponding list of atomic numbers of the reference atom with shape (N)
+# the
+def create_matrices(grid_points):
     # create the distance matrix
-    distance_matrices, atomic_numbers = create_distance_matrices(grid_points)
+    local_distance_matrices = []
+    long_range_distance_matrices = []
+    local_atomic_numbers = []
+    long_range_atomic_features = []
 
-    # create the expanded distance matrix
-    expanded_distance_matrices = create_expanded_distance_matrix(distance_matrices)
+    N_max_local = 0
+    N_max_long_range = 0
 
-    return expanded_distance_matrices, atomic_numbers
+    for i, grid_point in enumerate(grid_points):
+        # loop over all atoms in the grid cell
+        for current_atom in grid_point.atoms:
+            # TODO: Use NumPy instead of Python lists and calculate the number of distance vectors beforehand
+            local_distance_matrix = []
+            long_range_distance_matrix = []
+            # list of lists of the form [atom_number_1, atom_number_2
+            # where atom_number_1 is the atomic number of the current atom and
+            # atom_number_2 is the atomic number of the atom in the distance vector
+            current_atomic_numbers = []
+            current_atomic_features = []
+
+            for level, neighbours in grid_point.neighbour_tree.items():
+                if level < 2:
+                    # for level 0 and 1 we calculate the distance to all atoms directly
+                    for neighbour in neighbours:
+                        for atom in neighbour.atoms:
+                            # skip the current atom
+                            if current_atom == atom:
+                                continue
+
+                            # calculate the distance between the two atoms
+                            local_distance_matrix.append(current_atom.position - atom.position)
+                            # add the atomic numbers to the list
+                            current_atomic_numbers.append([current_atom.number, atom.number])
+
+                else:
+                    # for all other levels we calculate the distance to the center of mass
+                    for neighbour in neighbours:
+                        # calculate the distance between the two atoms
+                        long_range_distance_matrix.append(current_atom.position - neighbour.get_center_of_mass())
+                        # add the atomic numbers to the list
+                        current_atomic_features.append(np.concatenate((np.array([current_atom.number]), neighbour.get_atomic_features())))
+
+            # append if not empty
+            # TODO: verify that this is correct
+            if len(local_distance_matrix) > 0:
+                local_distance_matrices.append(np.array(local_distance_matrix))
+                local_atomic_numbers.append(np.array(current_atomic_numbers))
+            if len(long_range_distance_matrix) > 0:
+                long_range_distance_matrices.append(np.array(long_range_distance_matrix))
+                long_range_atomic_features.append(np.array(current_atomic_features))
+
+            if len(local_distance_matrix) > N_max_local:
+                N_max_local = len(local_distance_matrix)
+
+            if len(long_range_distance_matrix) > N_max_long_range:
+                N_max_long_range = len(long_range_distance_matrix)
+
+    # expand the distance matrices
+    local_distance_matrices = create_expanded_distance_matrix(local_distance_matrices)
+    long_range_distance_matrices = create_expanded_distance_matrix(long_range_distance_matrices)
+
+    return local_distance_matrices, local_atomic_numbers, long_range_distance_matrices, long_range_atomic_features, N_max_local, N_max_long_range
+
+
+def pad_df_entry(entry, n_max, expected_width):
+    # pad the entry with zeros to the maximum length
+    if len(entry) == 0:
+        return np.zeros((n_max, expected_width))
+
+    padded = []
+    for x in entry:
+        padded.append(np.pad(x, ((0, n_max - len(x)), (0, 0)), mode="constant"))
+    return np.array(padded)
+
+
+def create_df(path, grid_size, save_path="dataset.pkl.gz"):
+    keys = [Keys.LOCAL_DISTANCE_MATRIX_KEY, Keys.LOCAL_ATOMIC_NUMBERS_KEY, Keys.LONG_RANGE_DISTANCE_MATRIX_KEY,
+            Keys.LONG_RANGE_ATOMIC_FEATURES_KEY, Keys.N_MAX_LOCAL_KEY, Keys.N_MAX_LONG_RANGE_KEY]
+
+    df = pd.read_pickle(path, compression="gzip")
+    df = deserialize_df(df)
+    df = filter_out_single_atom_molecules(df)
+
+    # create grid for each df entry
+    df[Keys.GRID_KEY] = df[Keys.ATOMS_KEY].apply(lambda x: create_grid(x, grid_size))
+
+    # create expanded distance matrix for each df entry
+    df[keys] = df[Keys.GRID_KEY].apply(
+        lambda x: pd.Series(create_matrices(x), index=keys)
+    )
+
+    # pad the local distance matrices, local atomic numbers, long range distance matrices and long range atomic features
+    # with zeros to the maximum length
+    n_max_local = df[Keys.N_MAX_LOCAL_KEY].max()
+    n_max_long_range = df[Keys.N_MAX_LONG_RANGE_KEY].max()
+    df[Keys.LOCAL_DISTANCE_MATRIX_KEY] = df[Keys.LOCAL_DISTANCE_MATRIX_KEY].apply(
+        lambda x: pad_df_entry(x, n_max_local, 4)
+    )
+    df[Keys.LOCAL_ATOMIC_NUMBERS_KEY] = df[Keys.LOCAL_ATOMIC_NUMBERS_KEY].apply(
+        lambda x: pad_df_entry(x, n_max_local, 2)
+    )
+    df[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY] = df[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY].apply(
+        lambda x: pad_df_entry(x, n_max_long_range, 4)
+    )
+    df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY] = df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY].apply(
+        lambda x: pad_df_entry(x, n_max_long_range, Dataset.MAX_ATOM_ELEMENTS + 1)
+    )
+
+    # save the dataframe
+    # add the grid size to the save path
+    if save_path.endswith(".pkl.gzip"):
+        save_path = save_path.replace(".pkl.gzip", f"_grid_size_{grid_size}.pkl.gzip")
+    else:
+        save_path = f"{save_path}_grid_size_{grid_size}.pkl.gzip"
+    df.to_pickle(save_path, compression="gzip")
+    return df
