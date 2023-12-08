@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from ase import Atoms, Atom
+import tensorflow as tf
 from Constants import Keys, Dataset
 
 
@@ -122,6 +123,10 @@ def create_expanded_distance_matrix(distance_matrices):
     expanded_distance_matrices = []
     for i, distance_matrix in enumerate(distance_matrices):
 
+        if len(distance_matrix) == 0:
+            expanded_distance_matrices.append([])
+            continue
+
         # calculate the inverse of the distance
         inverse_distance = np.linalg.norm(distance_matrix, axis=1)
         inverse_distance[inverse_distance == 0] = 1
@@ -184,20 +189,15 @@ def create_matrices(grid_points):
                         # add the atomic numbers to the list
                         current_atomic_features.append(np.concatenate((np.array([current_atom.number]), neighbour.get_atomic_features())))
 
-            # append if not empty
-            # TODO: verify that this is correct
-            if len(local_distance_matrix) > 0:
-                local_distance_matrices.append(np.array(local_distance_matrix))
-                local_atomic_numbers.append(np.array(current_atomic_numbers))
-            if len(long_range_distance_matrix) > 0:
-                long_range_distance_matrices.append(np.array(long_range_distance_matrix))
-                long_range_atomic_features.append(np.array(current_atomic_features))
+            # append
+            local_distance_matrices.append(np.array(local_distance_matrix))
+            local_atomic_numbers.append(np.array(current_atomic_numbers))
+            long_range_distance_matrices.append(np.array(long_range_distance_matrix))
+            long_range_atomic_features.append(np.array(current_atomic_features))
 
-            if len(local_distance_matrix) > N_max_local:
-                N_max_local = len(local_distance_matrix)
-
-            if len(long_range_distance_matrix) > N_max_long_range:
-                N_max_long_range = len(long_range_distance_matrix)
+            # update the maximum length
+            N_max_local = max(N_max_local, len(local_distance_matrix))
+            N_max_long_range = max(N_max_long_range, len(long_range_distance_matrix))
 
     # expand the distance matrices
     local_distance_matrices = create_expanded_distance_matrix(local_distance_matrices)
@@ -209,11 +209,16 @@ def create_matrices(grid_points):
 def pad_df_entry(entry, n_max, expected_width):
     # pad the entry with zeros to the maximum length
     if len(entry) == 0:
-        return np.zeros((n_max, expected_width))
+        return np.zeros((1, n_max, expected_width))
 
     padded = []
     for x in entry:
+        if len(x) == 0:
+            padded.append(np.zeros((n_max, expected_width)))
+            continue
+
         padded.append(np.pad(x, ((0, n_max - len(x)), (0, 0)), mode="constant"))
+
     return np.array(padded)
 
 
@@ -258,3 +263,44 @@ def create_df(path, grid_size, save_path="dataset.pkl.gz"):
         save_path = f"{save_path}_grid_size_{grid_size}.pkl.gzip"
     df.to_pickle(save_path, compression="gzip")
     return df
+
+
+def create_tf_dataset(path):
+    df = pd.read_pickle(path, compression="gzip")
+
+    local_distance_matrices = np.concatenate(np.array(df[Keys.LOCAL_DISTANCE_MATRIX_KEY]), axis=0)
+    local_atomic_numbers = np.concatenate(np.array(df[Keys.LOCAL_ATOMIC_NUMBERS_KEY]), axis=0)
+    long_range_distance_matrices = np.concatenate(np.array(df[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY]), axis=0)
+    long_range_atomic_features = np.concatenate(np.array(df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY]), axis=0)
+    # energies = np.concatenate(np.array(df[Keys.ENERGY_KEY]))
+    forces = np.concatenate(np.array(df[Keys.FORCE_KEY]))
+
+    print("-" * 50)
+    print("Dataset shapes:")
+    print(local_distance_matrices.shape)
+    print(local_atomic_numbers.shape)
+    print(long_range_distance_matrices.shape)
+    print(long_range_atomic_features.shape)
+    # print(energies.shape)
+    print(forces.shape)
+    print("-" * 50)
+
+    # create tf dataset
+    dataset = tf.data.Dataset.from_tensor_slices(
+        (
+            local_distance_matrices,
+            local_atomic_numbers,
+            long_range_distance_matrices,
+            long_range_atomic_features,
+            # energies,
+            forces
+        )
+    )
+
+    # shuffle and batch
+    dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)
+    dataset = dataset.batch(Dataset.BATCH_SIZE, drop_remainder=True)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+
+    return dataset
+

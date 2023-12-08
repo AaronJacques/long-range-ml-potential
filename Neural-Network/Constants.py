@@ -18,3 +18,5 @@ class Keys:
 @dataclass(frozen=True)
 class Dataset:
     MAX_ATOM_ELEMENTS = 100
+    SHUFFLE_BUFFER_SIZE = 1000
+    BATCH_SIZE = 64
