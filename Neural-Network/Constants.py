@@ -15,8 +15,20 @@ class Keys:
     N_MAX_LOCAL_KEY = "n_max_local"
     N_MAX_LONG_RANGE_KEY = "n_max_long_range"
 
+
 @dataclass(frozen=True)
 class Dataset:
     MAX_ATOM_ELEMENTS = 100
     SHUFFLE_BUFFER_SIZE = 1000
     BATCH_SIZE = 64
+
+
+@dataclass(frozen=True)
+class Model:
+    input_shape_local_matrix = (8, 4)
+    input_shape_atomic_numbers = (8, 2)
+    input_shape_long_range_matrix = (124, 4)
+    input_shape_long_range_atomic_features = (124, Dataset.MAX_ATOM_ELEMENTS + 1)
+    M1 = 32
+    M2 = 32
+    embedding_size = 10
