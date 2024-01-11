@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Embedding, concatenate, Dense, Flatten, Lambda, Concatenate
 
-from Constants import Model
+from Constants import Model as ModelConstants
 
 
 def get_embedding(s, species1, species2, M1=32, embedding_size=10):
@@ -41,39 +41,54 @@ def local_embedding(local_matrix, atomic_numbers):
     # Extracting the first column using Lambda layer
     first_column_local_matrix = Lambda(lambda x: x[:, :, 0])(local_matrix)
 
-    # concatenate the first column of local matrix with atomic numbers
-    concatenated_input = Concatenate(axis=-1)([first_column_local_matrix, atomic_numbers])
+    # insert the first column of local matrix into the atomic numbers matrix as a new column at the beginning
+    first_column_local_matrix = tf.expand_dims(first_column_local_matrix, axis=-1)
+    matrix = Concatenate(axis=-1)([first_column_local_matrix, atomic_numbers])
 
-    # Embedding layer
-    return Embedding(input_dim=Model.embedding_size, output_dim=Model.M1)(concatenated_input)
+    # create embedding for the matrix with multiple Dense layers
+    for dim in ModelConstants.embedding_dims:
+        matrix = Dense(dim, activation='relu')(matrix)
+
+    # TODO: add a Dropout layer here
+
+    return matrix
 
 
 def long_range_embedding(long_range_matrix, long_range_atomic_features):
     # Extracting the first column using Lambda layer
     first_column_long_range_matrix = Lambda(lambda x: x[:, :, 0])(long_range_matrix)
 
-    # concatenate the first column of local matrix with atomic numbers
-    concatenated_input = Concatenate(axis=-1)([first_column_long_range_matrix, long_range_atomic_features])
+    # insert the first column of local matrix into the atomic features matrix as a new column at the beginning
+    first_column_local_matrix = tf.expand_dims(first_column_long_range_matrix, axis=-1)
+    matrix = Concatenate(axis=-1)([first_column_local_matrix, long_range_atomic_features])
 
-    # Embedding layer
-    return Embedding(input_dim=Model.embedding_size, output_dim=Model.M1)(concatenated_input)
+    # create embedding for the matrix with multiple Dense layers
+    for dim in ModelConstants.embedding_dims:
+        matrix = Dense(dim, activation='relu')(matrix)
+
+    # TODO: add a Dropout layer here
+
+    return matrix
 
 
 def feature_matrix(distance_matrix, embedding_matrix):
     g1 = embedding_matrix
-    g2 = Lambda(lambda x: x[:, :Model.M2])(embedding_matrix)
-    return tf.matmul(tf.transpose(g1), tf.matmul(distance_matrix, tf.matmul(tf.transpose(distance_matrix), g2)))
+    g2 = Lambda(lambda x: x[:, :, :ModelConstants.M2])(embedding_matrix)
+    p1 = tf.linalg.matmul(distance_matrix, g2, transpose_a=True)
+    p2 = tf.linalg.matmul(distance_matrix, p1)
+    return tf.linalg.matmul(g1, p2, transpose_a=True)
+    #return tf.matmul(tf.transpose(g1), tf.matmul(distance_matrix, tf.matmul(tf.transpose(distance_matrix), g2)))
 
 
 def force_network(feature_matrix):
     return Dense(3, activation='linear')(feature_matrix)
 
 
-def model():
-    input_local_matrix = Input(shape=Model.input_shape_local_matrix, name='input_local_matrix')
-    input_atomic_numbers = Input(shape=Model.input_shape_atomic_numbers, name='input_atomic_numbers')
-    input_long_range_matrix = Input(shape=Model.input_shape_long_range_matrix, name='input_long_range_matrix')
-    input_long_range_atomic_features = Input(shape=Model.input_shape_long_range_atomic_features,
+def get_model():
+    input_local_matrix = Input(shape=ModelConstants.input_shape_local_matrix, name='input_local_matrix')
+    input_atomic_numbers = Input(shape=ModelConstants.input_shape_atomic_numbers, name='input_atomic_numbers')
+    input_long_range_matrix = Input(shape=ModelConstants.input_shape_long_range_matrix, name='input_long_range_matrix')
+    input_long_range_atomic_features = Input(shape=ModelConstants.input_shape_long_range_atomic_features,
                                              name='input_long_range_atomic_features')
 
     # Local
@@ -96,8 +111,8 @@ def model():
     force = force_network(flattened_feature_matrix)
 
     return Model(
-        [input_local_matrix, input_atomic_numbers, input_long_range_matrix, input_long_range_atomic_features],
-        force
+        inputs=[input_local_matrix, input_atomic_numbers, input_long_range_matrix, input_long_range_atomic_features],
+        outputs=force
     )
 
 

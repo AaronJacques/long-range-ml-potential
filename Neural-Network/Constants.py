@@ -30,5 +30,5 @@ class Model:
     input_shape_long_range_matrix = (124, 4)
     input_shape_long_range_atomic_features = (124, Dataset.MAX_ATOM_ELEMENTS + 1)
     M1 = 32
-    M2 = 32
-    embedding_size = 10
+    M2 = M1 // 2
+    embedding_dims = [3*M1, 2*M1, M1]
