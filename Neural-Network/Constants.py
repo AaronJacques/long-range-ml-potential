@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 
 
 # Hyperparameters
@@ -18,9 +19,17 @@ class Keys:
 
 @dataclass(frozen=True)
 class Dataset:
+    FILENAME = "Cu_df_preprocessed_grid_size_1.pkl.gzip"
+    PATH = os.path.join("..", "Datasets", FILENAME)
     MAX_ATOM_ELEMENTS = 100
     SHUFFLE_BUFFER_SIZE = 1000
     BATCH_SIZE = 64
+
+
+@dataclass(frozen=True)
+class Hyperparameters:
+    learning_rate = 0.001
+    EPOCHS = 20
 
 
 @dataclass(frozen=True)
