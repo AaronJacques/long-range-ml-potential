@@ -298,7 +298,10 @@ def create_tf_dataset(path):
     )
 
     # forces are the labels and the rest is the input
-    dataset = dataset.map(lambda x1, x2, x3, x4, y: ((x1, x2, x3, x4), y))
+    dataset = dataset.map(
+        lambda x1, x2, x3, x4, y: ((x1, x2, x3, x4), y),
+        num_parallel_calls=tf.data.experimental.AUTOTUNE
+    )
 
     # shuffle and batch
     dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)

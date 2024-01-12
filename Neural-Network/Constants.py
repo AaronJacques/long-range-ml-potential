@@ -29,7 +29,9 @@ class Dataset:
 @dataclass(frozen=True)
 class Hyperparameters:
     learning_rate = 0.001
-    EPOCHS = 20
+    decay_steps = 2000
+    decay_rate = 0.96
+    EPOCHS = 100
 
 
 @dataclass(frozen=True)

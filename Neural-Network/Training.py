@@ -51,9 +51,15 @@ class ForceMSE(losses.Loss):
 
 def compile_model(model):
     # TODO: add learning rate scheduler
+    lr_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=Hyperparameters.learning_rate,
+        decay_steps=Hyperparameters.decay_steps,
+        decay_rate=Hyperparameters.decay_rate,
+        staircase=True
+    )
 
     # optimizer
-    optimizer = tf.keras.optimizers.Adam(learning_rate=Hyperparameters.learning_rate)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_scheduler)
 
     # loss for each output
     loss_func = ForceMSE()

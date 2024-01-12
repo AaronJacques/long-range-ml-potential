@@ -1,40 +1,8 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, concatenate, Dense, Flatten, Lambda, Concatenate
+from tensorflow.keras.layers import Input, Embedding, concatenate, Dense, Flatten, Lambda, Concatenate, Dropout
 
 from Constants import Model as ModelConstants
-
-
-def get_embedding(s, species1, species2, M1=32, embedding_size=10):
-    num_distance_vectors = len(s)
-
-    # Define the input layers
-    input_atom1 = Input(shape=(1,), name='input_atom1')
-    input_atom2 = Input(shape=(1,), name='input_atom2')
-    input_distance = Input(shape=(1,), name='input_distance')
-
-    # Repeat the input layers for each distance vector
-    input_atom1_repeated = concatenate([input_atom1] * num_distance_vectors, axis=1)
-    input_atom2_repeated = concatenate([input_atom2] * num_distance_vectors, axis=1)
-    input_distance_vector = concatenate([input_distance] * num_distance_vectors, axis=1)
-
-    # Define the embedding layers for atomic numbers
-    embedding_layer_atom1 = Embedding(input_dim=100, output_dim=embedding_size)(input_atom1_repeated)
-    embedding_layer_atom2 = Embedding(input_dim=100, output_dim=embedding_size)(input_atom2_repeated)
-
-    # Flatten the embeddings
-    flatten_layer_atom1 = Flatten()(embedding_layer_atom1)
-    flatten_layer_atom2 = Flatten()(embedding_layer_atom2)
-
-    # Concatenate the flattened embeddings with the distance input
-    merged_layer = concatenate([flatten_layer_atom1, flatten_layer_atom2, input_distance_vector])
-
-    # Define the dense layers for further processing
-    dense_layer1 = Dense(4 * M1, activation='relu')(merged_layer)
-    dense_layer2 = Dense(2 * M1, activation='relu')(dense_layer1)
-
-    # Output layer
-    return Dense(M1, activation='linear', name='output')(dense_layer2)
 
 
 def local_embedding(local_matrix, atomic_numbers):
@@ -81,7 +49,16 @@ def feature_matrix(distance_matrix, embedding_matrix):
 
 
 def force_network(feature_matrix):
-    return Dense(3, activation='linear')(feature_matrix)
+    r = Dense(512, activation='relu')(feature_matrix)
+    r = Dropout(0.2)(r)
+    r = Dense(512, activation='relu')(r)
+    r = Dropout(0.2)(r)
+    r = Dense(128, activation='relu')(r)
+    r = Dropout(0.2)(r)
+    r = Dense(32, activation='relu')(r)
+    r = Dropout(0.2)(r)
+    r = Dense(8, activation='relu')(r)
+    return Dense(3, activation='linear')(r)
 
 
 def get_model():
