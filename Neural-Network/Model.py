@@ -48,17 +48,24 @@ def feature_matrix(distance_matrix, embedding_matrix):
     #return tf.matmul(tf.transpose(g1), tf.matmul(distance_matrix, tf.matmul(tf.transpose(distance_matrix), g2)))
 
 
-def force_network(feature_matrix):
+def model(feature_matrix):
+    r = Dense(512, activation='relu')(feature_matrix)
+    r = Dropout(0.2)(r)
     r = Dense(512, activation='relu')(feature_matrix)
     r = Dropout(0.2)(r)
     r = Dense(512, activation='relu')(r)
+    r = Dropout(0.2)(r)
+    r = Dense(256, activation='relu')(r)
+    r = Dropout(0.2)(r)
+    r = Dense(256, activation='relu')(r)
     r = Dropout(0.2)(r)
     r = Dense(128, activation='relu')(r)
     r = Dropout(0.2)(r)
     r = Dense(32, activation='relu')(r)
     r = Dropout(0.2)(r)
     r = Dense(8, activation='relu')(r)
-    return Dense(3, activation='linear')(r)
+    return_shape = 3 if ModelConstants.only_force else 4
+    return Dense(return_shape, activation='linear')(r)
 
 
 def get_model():
@@ -85,7 +92,7 @@ def get_model():
     flattened_feature_matrix = Flatten()(concatenated_feature_matrix)
 
     # force network
-    force = force_network(flattened_feature_matrix)
+    force = model(flattened_feature_matrix)
 
     return Model(
         inputs=[input_local_matrix, input_atomic_numbers, input_long_range_matrix, input_long_range_atomic_features],

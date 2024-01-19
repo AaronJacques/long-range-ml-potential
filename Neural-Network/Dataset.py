@@ -222,13 +222,18 @@ def pad_df_entry(entry, n_max, expected_width):
     return np.array(padded)
 
 
-def create_df(path, grid_size, save_path="dataset.pkl.gz"):
+def create_df(files, grid_size, save_path="dataset.pkl.gz"):
     keys = [Keys.LOCAL_DISTANCE_MATRIX_KEY, Keys.LOCAL_ATOMIC_NUMBERS_KEY, Keys.LONG_RANGE_DISTANCE_MATRIX_KEY,
             Keys.LONG_RANGE_ATOMIC_FEATURES_KEY, Keys.N_MAX_LOCAL_KEY, Keys.N_MAX_LONG_RANGE_KEY]
 
-    df = pd.read_pickle(path, compression="gzip")
-    df = deserialize_df(df)
-    df = filter_out_single_atom_molecules(df)
+    # for each file
+    df = pd.DataFrame()
+    for file in files:
+        print(f"Reading {file}")
+        df_temp = pd.read_pickle(file, compression="gzip")
+        df_temp = deserialize_df(df_temp)
+        df_temp = filter_out_single_atom_molecules(df_temp)
+        df = pd.concat([df, df_temp], ignore_index=True)
 
     # create grid for each df entry
     df[Keys.GRID_KEY] = df[Keys.ATOMS_KEY].apply(lambda x: create_grid(x, grid_size))
@@ -310,3 +315,59 @@ def create_tf_dataset(path):
 
     return dataset
 
+
+# without Tensorflow
+def create_dataset(path):
+    df = pd.read_pickle(path, compression="gzip")
+
+    # get the shapes of the matrices (all matrices have the same shape)
+    local_distance_matrix_shape = df[Keys.LOCAL_DISTANCE_MATRIX_KEY][0].shape[1:]
+    local_atomic_numbers_shape = df[Keys.LOCAL_ATOMIC_NUMBERS_KEY][0].shape[1:]
+    long_range_distance_matrix_shape = df[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY][0].shape[1:]
+    long_range_atomic_features_shape = df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY][0].shape[1:]
+
+    def generator():
+        for _, row in df.iterrows():
+            yield (
+                row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
+                row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
+                row[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY],
+                row[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY],
+                row[Keys.FORCE_KEY],
+                np.array([row[Keys.ENERGY_KEY]])
+            )
+
+    dataset = tf.data.Dataset.from_generator(generator, output_signature=(
+        tf.TensorSpec(shape=(None, *local_distance_matrix_shape,), dtype=tf.float32),
+        tf.TensorSpec(shape=(None, *local_atomic_numbers_shape,), dtype=tf.int32),
+        tf.TensorSpec(shape=(None, *long_range_distance_matrix_shape,), dtype=tf.float32),
+        tf.TensorSpec(shape=(None, *long_range_atomic_features_shape,), dtype=tf.float32),
+        tf.TensorSpec(shape=(None, 3,), dtype=tf.float32),  # (fx, fy, fz)
+        tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
+    ))
+
+    # Shuffle and batch
+    dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)
+    dataset = dataset.padded_batch(Dataset.BATCH_SIZE, padded_shapes=(
+        (None, *local_distance_matrix_shape,),
+        (None, *local_atomic_numbers_shape,),
+        (None, *long_range_distance_matrix_shape,),
+        (None, *long_range_atomic_features_shape,),
+        (None, 3,),
+        (1,)
+    ), drop_remainder=True)
+
+    # energies and forces are the labels and the rest is the input
+    dataset = dataset.map(
+        lambda x1, x2, x3, x4, y1, y2: ((x1, x2, x3, x4), (y1, y2)),
+        num_parallel_calls=tf.data.experimental.AUTOTUNE
+    )
+
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+
+    return dataset
+
+
+if __name__ == "__main__":
+    path = Dataset.PATH
+    ds = create_dataset(path)

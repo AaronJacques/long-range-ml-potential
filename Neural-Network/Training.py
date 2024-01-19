@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow.keras import losses
 
 from Constants import Dataset, Hyperparameters
-from Dataset import create_tf_dataset
+from Dataset import create_tf_dataset, create_dataset
 from Model import get_model
 
 
@@ -49,6 +49,63 @@ class ForceMSE(losses.Loss):
         return mse
 
 
+def train_step(model, optimizer, batch):
+    losses = []
+    batch_inputs, batch_outputs = batch
+    batch_forces, batch_total_energy = batch_outputs
+
+    # loop over the elements of the batch
+    for i in range(Dataset.BATCH_SIZE):
+        inputs = [batch_inputs[k][i] for k in range(4)]
+        forces = batch_forces[i]
+        total_energy = batch_total_energy[i]
+
+        total_energy_pred = 0
+
+        num_atoms = inputs[0].shape[1]
+
+        force_losses = []
+
+        # Loop over atoms
+        for j in range(num_atoms):
+            input_atom = [inputs[k]for k in range(4)]
+            force = forces[j]
+
+            # Calculate predictions
+            model_output = model(input_atom)
+            force_pred, energy_pred = model_output[:, :3], model_output[:, 3]
+
+            # Calculate losses
+            force_loss = tf.keras.losses.MSE(force, force_pred)
+
+            force_losses.append(force_loss)
+            total_energy_pred += energy_pred
+
+        # Calculate total loss
+        loss = tf.math.reduce_sum(force_losses) + tf.keras.losses.MSE(total_energy, total_energy_pred)
+        losses.append(loss)
+
+    # Compute and apply gradients
+    with tf.GradientTape() as tape:
+        gradients = tape.gradient(losses, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+
+# Training function
+def start_training_custom():
+    dataset = create_dataset(Dataset.PATH)
+    model = get_model()
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+
+    for epoch in range(Hyperparameters.EPOCHS):
+        for batch in dataset:
+            train_step(model, optimizer, batch)
+
+        # Save the model after each epoch
+        model.save(os.path.join("..", "Checkpoints", f"model_epoch_{epoch}.h5"))
+        print(f"Epoch {epoch} finished")
+
+
 def compile_model(model):
     # TODO: add learning rate scheduler
     lr_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(
@@ -78,8 +135,7 @@ def create_callbacks():
         # time.strftime("%d-%m-%Y-%H-%M-%S", time.localtime(time.time()))
         time.strftime("%H-%M-%S", time.localtime(time.time()))
     )
-    dataset = Dataset.FILENAME.split(".")[0]
-    folder_name = f"Model-{Hyperparameters.learning_rate}-LR-{dataset}-DS-" + current_time
+    folder_name = f"Model-{Hyperparameters.learning_rate}-LR-{Dataset.NAME}-DS-" + current_time
     checkpoint_path = os.path.join("..", "Checkpoints", folder_name, "cp-{epoch:04d}.ckpt")
     checkpoint_dir = os.path.dirname(checkpoint_path)
     print(checkpoint_dir)
@@ -114,4 +170,5 @@ def start_training():
 
 if __name__ == "__main__":
     # create_tensorflow_session(0.5)
-    start_training()
+    # start_training()
+    start_training_custom()

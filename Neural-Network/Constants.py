@@ -19,7 +19,8 @@ class Keys:
 
 @dataclass(frozen=True)
 class Dataset:
-    FILENAME = "Cu_df_preprocessed_grid_size_1.pkl.gzip"
+    FILENAME = "Cu-Ethanol_df_preprocessed_grid_size_1.pkl.gzip"
+    NAME = FILENAME.split("_")[0]
     PATH = os.path.join("..", "Datasets", FILENAME)
     MAX_ATOM_ELEMENTS = 100
     SHUFFLE_BUFFER_SIZE = 1000
@@ -29,7 +30,7 @@ class Dataset:
 @dataclass(frozen=True)
 class Hyperparameters:
     learning_rate = 0.001
-    decay_steps = 2000
+    decay_steps = 3140
     decay_rate = 0.96
     EPOCHS = 100
 
@@ -43,3 +44,4 @@ class Model:
     M1 = 32
     M2 = M1 // 2
     embedding_dims = [3*M1, 2*M1, M1]
+    only_force = True
