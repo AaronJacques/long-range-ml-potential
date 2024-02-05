@@ -1,6 +1,8 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, concatenate, Dense, Flatten, Lambda, Concatenate, Dropout
+from tensorflow.keras.layers import (
+    Input, Embedding, concatenate, Dense, Flatten, Lambda, Concatenate, Dropout, LayerNormalization, Add
+)
 
 from Constants import Model as ModelConstants
 
@@ -48,7 +50,33 @@ def feature_matrix(distance_matrix, embedding_matrix):
     #return tf.matmul(tf.transpose(g1), tf.matmul(distance_matrix, tf.matmul(tf.transpose(distance_matrix), g2)))
 
 
-def model(feature_matrix):
+def dense_res_block(input, units, activation='relu'):
+    r = LayerNormalization()(input)
+    r = Dense(units, activation=activation)(r)
+    r = Dense(units, activation=activation)(r)
+    # dense layer to get correct shape for add
+    r = Dense(int(input.get_shape().as_list()[1]), activation=activation)(r)
+    r = Dropout(0.2)(r)
+    # add the input to the output of the Dense layer
+    r = Add()([r, input])
+    r = LayerNormalization()(r)
+    return r
+
+
+def res_model(feature_matrix, return_shape=3):
+    r = Dense(512, activation='relu')(feature_matrix)
+    r = dense_res_block(r, 512)
+    r = dense_res_block(r, 512)
+    r = dense_res_block(r, 512)
+    r = dense_res_block(r, 256)
+    r = dense_res_block(r, 256)
+    r = dense_res_block(r, 128)
+    r = dense_res_block(r, 32)
+    r = dense_res_block(r, 8)
+    return Dense(return_shape, activation='linear')(r)
+
+
+def model(feature_matrix, return_shape=3):
     r = Dense(512, activation='relu')(feature_matrix)
     r = Dropout(0.2)(r)
     r = Dense(512, activation='relu')(feature_matrix)
@@ -64,11 +92,10 @@ def model(feature_matrix):
     r = Dense(32, activation='relu')(r)
     r = Dropout(0.2)(r)
     r = Dense(8, activation='relu')(r)
-    return_shape = 3 if ModelConstants.only_force else 4
     return Dense(return_shape, activation='linear')(r)
 
 
-def get_model():
+def get_model(predict_force_only=False):
     input_local_matrix = Input(shape=ModelConstants.input_shape_local_matrix, name='input_local_matrix')
     input_atomic_numbers = Input(shape=ModelConstants.input_shape_atomic_numbers, name='input_atomic_numbers')
     input_long_range_matrix = Input(shape=ModelConstants.input_shape_long_range_matrix, name='input_long_range_matrix')
@@ -92,7 +119,10 @@ def get_model():
     flattened_feature_matrix = Flatten()(concatenated_feature_matrix)
 
     # force network
-    force = model(flattened_feature_matrix)
+    if ModelConstants.resnet:
+        force = res_model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
+    else:
+        force = model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
 
     return Model(
         inputs=[input_local_matrix, input_atomic_numbers, input_long_range_matrix, input_long_range_atomic_features],

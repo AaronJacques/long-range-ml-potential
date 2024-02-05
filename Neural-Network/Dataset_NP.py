@@ -1,27 +1,14 @@
-import pandas as pd
 import numpy as np
-from ase import Atoms, Atom
+import pandas as pd
+from Constants import Dataset, Keys
+from tqdm import tqdm
 import tensorflow as tf
-from Constants import Keys, Dataset
-
-
-def deserialize_df(df):
-    df["ase_atoms"] = [Atoms(atom) for atom in df["ase_atoms"]]
-    return df
-
-
-def filter_out_single_atom_molecules(df):
-    # filter out single atom molecules
-    df = df[df["ase_atoms"].apply(lambda atoms: len(atoms) > 1)]
-    # reset the index
-    df = df.reset_index(drop=True)
-    return df
-
 
 class GridCell:
-    def __init__(self, grid_index, atoms):
+    def __init__(self, grid_index, positions, atomic_numbers):
         self.grid_index = grid_index
-        self.atoms = atoms
+        self.positions = positions
+        self.atomic_numbers = atomic_numbers
         # each grid cell has a dictionary of neighbour trees
         # the key is the level of the neighbour tree and the value
         # is a list of grid cells at that level
@@ -37,26 +24,27 @@ class GridCell:
         return hash(self.grid_index)
 
     def __str__(self):
-        atoms_str = ", ".join([str(atom) for atom in self.atoms])
-        return f"GridCell(index: {self.grid_index}, atoms: {atoms_str})"
+        return f"GridCell(index: {self.grid_index})"
 
     def __repr__(self):
         return self.__str__()
 
     def __create_atomic_features(self):
         atomic_features = np.zeros(self.max_atom_elements, dtype=int)
-        for i, atom in enumerate(self.atoms):
-            if atom.number > self.max_atom_elements:
+        for atomic_number in self.atomic_numbers:
+            if atomic_number > self.max_atom_elements:
                 continue
-            atomic_features[atom.number - 1] += 1
+            atomic_features[atomic_number - 1] += 1
         return atomic_features
 
     # add an atom to the grid cell
-    def add_atom(self, atom):
-        self.atoms.append(atom)
+    def add_atom(self, position, atomic_number):
+        # append this to the positions numpy array
+        self.positions.append(np.array(position))
+        self.atomic_numbers.append(atomic_number)
         # add the atomic number to the atomic features
-        if atom.number <= self.max_atom_elements:
-            self.atomic_features[atom.number - 1] += 1
+        if atomic_number <= self.max_atom_elements:
+            self.atomic_features[atomic_number - 1] += 1
 
     # generate neighbour tree
     # The node is the current grid cell.
@@ -78,13 +66,13 @@ class GridCell:
 
     # get the sum of the atomic numbers of the grid cell
     def get_atomic_number_sum(self):
-        return np.sum([atom.number for atom in self.atoms])
+        return np.sum(self.atomic_numbers)
 
     # get the center of mass of the grid cell
     # weighted by the atomic numbers
     def get_center_of_mass(self):
         total_mass = self.get_atomic_number_sum()
-        total_mass_position = np.sum([atom.number * atom.position for atom in self.atoms], axis=0)
+        total_mass_position = np.sum(np.array(self.positions) * np.array(self.atomic_numbers).reshape(-1, 1), axis=0)
         return total_mass_position / total_mass
 
     # each index corresponds to the atomic number (0: H, 1: He, etc.)
@@ -94,20 +82,20 @@ class GridCell:
         return self.atomic_features
 
 
-def create_grid(atoms, grid_size):
+def create_grid(positions, atomic_numbers, grid_size):
     # Determine the grid boundaries
-    min_values = np.min(atoms.positions, axis=0)
-    max_values = np.max(atoms.positions, axis=0)
+    min_values = np.min(positions, axis=0)
+    max_values = np.max(positions, axis=0)
 
     # Create an empty dictionary
     grid = {}
 
     # Assign each point to the corresponding grid box
-    for i, point in enumerate(atoms.positions):
+    for i, (point, atomic_number) in enumerate(zip(positions, atomic_numbers)):
         grid_coordinates = tuple(((point - min_values) / grid_size).astype(int))
         if grid_coordinates not in grid:
-            grid[grid_coordinates] = GridCell(grid_coordinates, [])
-        grid[grid_coordinates].add_atom(atoms[i])
+            grid[grid_coordinates] = GridCell(grid_coordinates, [], [])
+        grid[grid_coordinates].add_atom(point, atomic_number)
 
     # add neighbours
     for grid_point in grid.values():
@@ -157,7 +145,7 @@ def create_matrices(grid_points):
 
     for i, grid_point in enumerate(grid_points):
         # loop over all atoms in the grid cell
-        for current_atom in grid_point.atoms:
+        for position, atomic_number in zip(grid_point.positions, grid_point.atomic_numbers):
             # TODO: Use NumPy instead of Python lists and calculate the number of distance vectors beforehand
             local_distance_matrix = []
             long_range_distance_matrix = []
@@ -171,23 +159,23 @@ def create_matrices(grid_points):
                 if level < 2:
                     # for level 0 and 1 we calculate the distance to all atoms directly
                     for neighbour in neighbours:
-                        for atom in neighbour.atoms:
+                        for neighbour_pos, neighbour_atomic_number in zip(neighbour.positions, neighbour.atomic_numbers):
                             # skip the current atom
-                            if current_atom == atom:
+                            if (neighbour_pos == position).all(): # only compare the positions because no two atoms can have the same position
                                 continue
 
                             # calculate the distance between the two atoms
-                            local_distance_matrix.append(current_atom.position - atom.position)
+                            local_distance_matrix.append(position - neighbour_pos)
                             # add the atomic numbers to the list
-                            current_atomic_numbers.append([current_atom.number, atom.number])
+                            current_atomic_numbers.append([atomic_number, neighbour_atomic_number])
 
                 else:
                     # for all other levels we calculate the distance to the center of mass
                     for neighbour in neighbours:
                         # calculate the distance between the two atoms
-                        long_range_distance_matrix.append(current_atom.position - neighbour.get_center_of_mass())
+                        long_range_distance_matrix.append(position - neighbour.get_center_of_mass())
                         # add the atomic numbers to the list
-                        current_atomic_features.append(np.concatenate((np.array([current_atom.number]), neighbour.get_atomic_features())))
+                        current_atomic_features.append(np.concatenate((np.array([atomic_number]), neighbour.get_atomic_features())))
 
             # append
             local_distance_matrices.append(np.array(local_distance_matrix))
@@ -222,31 +210,58 @@ def pad_df_entry(entry, n_max, expected_width):
     return np.array(padded)
 
 
-def create_df(files, grid_size, save_path="dataset.pkl.gz"):
+def create_dataset(paths, grid_size, save_path, n_samples_per=None):
+    # create Pandas DataFrame
+    df = None
     keys = [Keys.LOCAL_DISTANCE_MATRIX_KEY, Keys.LOCAL_ATOMIC_NUMBERS_KEY, Keys.LONG_RANGE_DISTANCE_MATRIX_KEY,
             Keys.LONG_RANGE_ATOMIC_FEATURES_KEY, Keys.N_MAX_LOCAL_KEY, Keys.N_MAX_LONG_RANGE_KEY]
 
-    # for each file
-    df = pd.DataFrame()
-    for file in files:
-        print(f"Reading {file}")
-        df_temp = pd.read_pickle(file, compression="gzip")
-        df_temp = deserialize_df(df_temp)
-        df_temp = filter_out_single_atom_molecules(df_temp)
-        df = pd.concat([df, df_temp], ignore_index=True)
+    for path in tqdm(paths, total=len(paths), desc="Reading files", unit="file"):
+        data = np.load(path)
+        if n_samples_per is not None:
+            size = min(n_samples_per, len(data['E']))
+        else:
+            size = len(data['E'])
+        current_energy = data['E'][:size]  # shape (n_samples)
+        current_forces = data['F'][:size]   # shape (n_samples, n_atoms, 3)
+        current_positions = data['R'][:size]   # shape (n_samples, n_atoms, 3)
+        current_atomic_numbers = data['z']  # shape (n_atoms)
+        # convert atomic numbers to shape (n_samples, n_atoms)
+        current_atomic_numbers = np.tile(current_atomic_numbers, (len(current_energy), 1))
 
-    # create grid for each df entry
-    df[Keys.GRID_KEY] = df[Keys.ATOMS_KEY].apply(lambda x: create_grid(x, grid_size))
+        # add the data to the DataFrame
+        current_df = pd.DataFrame(columns=['energy', 'forces', 'atomic_numbers', 'positions'])
+        current_df['energy'] = current_energy.flatten()
+        current_df['forces'] = current_forces.tolist()
+        current_df['atomic_numbers'] = current_atomic_numbers.tolist()
+        current_df['positions'] = current_positions.tolist()
+        if df is None:
+            df = current_df
+        else:
+            df = pd.concat([df, current_df], ignore_index=True)
 
-    # create expanded distance matrix for each df entry
+    print("Creating grids...")
+    # create grid for each sample
+    df[Keys.GRID_KEY] = df.apply(lambda row: create_grid(row['positions'], row['atomic_numbers'], grid_size), axis=1)
+    print("Created grids")
+
+    print("Creating matrices...")
+    # create matrices for each sample
     df[keys] = df[Keys.GRID_KEY].apply(
         lambda x: pd.Series(create_matrices(x), index=keys)
     )
+    # drop the grid column
+    df = df.drop(Keys.GRID_KEY, axis=1)
+    print("Created matrices")
 
+    print("Padding matrices...")
+    # pad the matrices
     # pad the local distance matrices, local atomic numbers, long range distance matrices and long range atomic features
     # with zeros to the maximum length
     n_max_local = df[Keys.N_MAX_LOCAL_KEY].max()
+    print(f"n_max_local: {n_max_local}")
     n_max_long_range = df[Keys.N_MAX_LONG_RANGE_KEY].max()
+    print(f"n_max_long_range: {n_max_long_range}")
     df[Keys.LOCAL_DISTANCE_MATRIX_KEY] = df[Keys.LOCAL_DISTANCE_MATRIX_KEY].apply(
         lambda x: pad_df_entry(x, n_max_local, 4)
     )
@@ -259,7 +274,9 @@ def create_df(files, grid_size, save_path="dataset.pkl.gz"):
     df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY] = df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY].apply(
         lambda x: pad_df_entry(x, n_max_long_range, Dataset.MAX_ATOM_ELEMENTS + 1)
     )
+    print("Padded matrices")
 
+    print("Saving DataFrame...")
     # save the dataframe
     # add the grid size to the save path
     if save_path.endswith(".pkl.gzip"):
@@ -267,7 +284,7 @@ def create_df(files, grid_size, save_path="dataset.pkl.gz"):
     else:
         save_path = f"{save_path}_grid_size_{grid_size}.pkl.gzip"
     df.to_pickle(save_path, compression="gzip")
-    return df
+    print("Saved DataFrame")
 
 
 def create_tf_dataset(path):
@@ -316,8 +333,7 @@ def create_tf_dataset(path):
     return dataset
 
 
-# without Tensorflow
-def create_dataset(path):
+def create_tf_generator_dataset(path):
     df = pd.read_pickle(path, compression="gzip")
 
     # get the shapes of the matrices (all matrices have the same shape)
@@ -369,5 +385,14 @@ def create_dataset(path):
 
 
 if __name__ == "__main__":
-    path = Dataset.PATH
-    ds = create_dataset(path)
+    files = ['./../Datasets/md17_aspirin.npz',
+             './../Datasets/md17_benzene2017.npz',
+             './../Datasets/md17_ethanol.npz',
+             './../Datasets/md17_malonaldehyde.npz',
+             './../Datasets/md17_naphthalene.npz',
+             './../Datasets/md17_salicylic.npz',
+             './../Datasets/md17_toluene.npz',
+             './../Datasets/md17_uracil.npz']
+
+    save_path = "./../Datasets/df_8molecules"
+    create_dataset(files, grid_size=1, save_path=save_path, n_samples_per=1000)

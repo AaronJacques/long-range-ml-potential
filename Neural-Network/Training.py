@@ -2,9 +2,10 @@ import os
 import time
 import tensorflow as tf
 from tensorflow.keras import losses
+from tqdm import tqdm
 
 from Constants import Dataset, Hyperparameters
-from Dataset import create_tf_dataset, create_dataset
+from Dataset_NP import create_tf_dataset, create_dataset
 from Model import get_model
 
 
@@ -49,46 +50,38 @@ class ForceMSE(losses.Loss):
         return mse
 
 
-def train_step(model, optimizer, batch):
-    losses = []
-    batch_inputs, batch_outputs = batch
-    batch_forces, batch_total_energy = batch_outputs
+def train_step(model, optimizer, element):
+    inputs, outputs = element
+    forces, total_energy = outputs
 
-    # loop over the elements of the batch
-    for i in range(Dataset.BATCH_SIZE):
-        inputs = [batch_inputs[k][i] for k in range(4)]
-        forces = batch_forces[i]
-        total_energy = batch_total_energy[i]
+    # Convert forces to float32 to match the model output
+    forces = tf.cast(forces, dtype=tf.float32)
 
-        total_energy_pred = 0
+    # Watch the model's trainable variables
+    with tf.GradientTape() as tape:
+        # Make predictions
+        prediction = model([inputs[0], inputs[1], inputs[2], inputs[3]])
 
-        num_atoms = inputs[0].shape[1]
+        # Separate energy and force predictions
+        energy_pred = prediction[:, 0]
+        force_pred = prediction[:, 1:]
 
-        force_losses = []
+        # Total energy is the sum of atomic energies
+        total_energy_pred = tf.math.reduce_sum(energy_pred)
 
-        # Loop over atoms
-        for j in range(num_atoms):
-            input_atom = [inputs[k]for k in range(4)]
-            force = forces[j]
+        # Calculate losses
+        total_energy_loss = losses.MSE(total_energy, total_energy_pred)
+        force_loss = losses.MSE(forces, force_pred)
 
-            # Calculate predictions
-            model_output = model(input_atom)
-            force_pred, energy_pred = model_output[:, :3], model_output[:, 3]
+        # Total loss is the sum of total energy loss and force loss
+        total_loss = total_energy_loss + force_loss
 
-            # Calculate losses
-            force_loss = tf.keras.losses.MSE(force, force_pred)
-
-            force_losses.append(force_loss)
-            total_energy_pred += energy_pred
-
-        # Calculate total loss
-        loss = tf.math.reduce_sum(force_losses) + tf.keras.losses.MSE(total_energy, total_energy_pred)
-        losses.append(loss)
+        # Print mean loss
+        print(f"Total loss: {tf.reduce_mean(total_loss)}")
 
     # Compute and apply gradients
-    with tf.GradientTape() as tape:
-        gradients = tape.gradient(losses, model.trainable_variables)
-        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+    gradients = tape.gradient(total_loss, model.trainable_variables)
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
 
 # Training function
@@ -97,9 +90,12 @@ def start_training_custom():
     model = get_model()
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
-    for epoch in range(Hyperparameters.EPOCHS):
-        for batch in dataset:
-            train_step(model, optimizer, batch)
+    for epoch in Hyperparameters.EPOCHS:
+        i = 0
+        for element in dataset:
+            print(f"Epoch {epoch} - Training step {i}")
+            train_step(model, optimizer, element)
+            i += 1
 
         # Save the model after each epoch
         model.save(os.path.join("..", "Checkpoints", f"model_epoch_{epoch}.h5"))
@@ -154,7 +150,7 @@ def create_callbacks():
 
 def start_training():
     dataset = create_tf_dataset(Dataset.PATH)
-    model = get_model()
+    model = get_model(predict_force_only=True)
     model = compile_model(model)
     callbacks, checkpoint_dir = create_callbacks()
 
@@ -170,5 +166,5 @@ def start_training():
 
 if __name__ == "__main__":
     # create_tensorflow_session(0.5)
-    # start_training()
-    start_training_custom()
+    start_training()
+    # start_training_custom()

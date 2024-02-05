@@ -19,7 +19,7 @@ class Keys:
 
 @dataclass(frozen=True)
 class Dataset:
-    FILENAME = "Cu-Ethanol_df_preprocessed_grid_size_1.pkl.gzip"
+    FILENAME = "df_8molecules_grid_size_1.pkl.gzip"
     NAME = FILENAME.split("_")[0]
     PATH = os.path.join("..", "Datasets", FILENAME)
     MAX_ATOM_ELEMENTS = 100
@@ -37,11 +37,11 @@ class Hyperparameters:
 
 @dataclass(frozen=True)
 class Model:
-    input_shape_local_matrix = (8, 4)
-    input_shape_atomic_numbers = (8, 2)
-    input_shape_long_range_matrix = (124, 4)
-    input_shape_long_range_atomic_features = (124, Dataset.MAX_ATOM_ELEMENTS + 1)
-    M1 = 32
+    resnet = False
+    input_shape_local_matrix = (7, 4)
+    input_shape_atomic_numbers = (7, 2)
+    input_shape_long_range_matrix = (20, 4)
+    input_shape_long_range_atomic_features = (20, Dataset.MAX_ATOM_ELEMENTS + 1)
+    M1 = 64
     M2 = M1 // 2
     embedding_dims = [3*M1, 2*M1, M1]
-    only_force = True
