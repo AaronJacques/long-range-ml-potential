@@ -5,7 +5,7 @@ from tensorflow.keras import losses
 from tqdm import tqdm
 
 from Constants import Dataset, Hyperparameters
-from Dataset_NP import create_tf_dataset, create_dataset
+from Dataset_NP import create_tf_generator_dataset, create_tf_dataset
 from Model import get_model
 
 
@@ -86,16 +86,19 @@ def train_step(model, optimizer, element):
 
 # Training function
 def start_training_custom():
-    dataset = create_dataset(Dataset.PATH)
-    model = get_model()
+    dataset = create_tf_generator_dataset(Dataset.PATH)
+    model = get_model(predict_force_only=False)
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
-    for epoch in Hyperparameters.EPOCHS:
+    # Training loop
+    dataset_size = None
+    for epoch in range(Hyperparameters.EPOCHS):
         i = 0
         for element in dataset:
-            print(f"Epoch {epoch} - Training step {i}")
+            print(f"Epoch {epoch} - Training step {i}/{dataset_size if dataset_size else 'Unknown'}")
             train_step(model, optimizer, element)
             i += 1
+        dataset_size = i
 
         # Save the model after each epoch
         model.save(os.path.join("..", "Checkpoints", f"model_epoch_{epoch}.h5"))
@@ -149,14 +152,16 @@ def create_callbacks():
 
 
 def start_training():
-    dataset = create_tf_dataset(Dataset.PATH)
+    train_ds = create_tf_dataset(os.path.join(Dataset.FOLDER, Dataset.TRAIN_NAME))
+    val_ds = create_tf_dataset(os.path.join(Dataset.FOLDER, Dataset.VAL_NAME))
     model = get_model(predict_force_only=True)
     model = compile_model(model)
     callbacks, checkpoint_dir = create_callbacks()
 
 
     # Training
-    model.fit(x=dataset,
+    model.fit(x=train_ds,
+              validation_data=val_ds,
               epochs=Hyperparameters.EPOCHS,
               initial_epoch=0,
               shuffle=True,

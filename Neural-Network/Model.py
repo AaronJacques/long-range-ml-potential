@@ -63,7 +63,7 @@ def dense_res_block(input, units, activation='relu'):
     return r
 
 
-def res_model(feature_matrix, return_shape=3):
+def res_model(feature_matrix, return_shape):
     r = Dense(512, activation='relu')(feature_matrix)
     r = dense_res_block(r, 512)
     r = dense_res_block(r, 512)
@@ -72,6 +72,18 @@ def res_model(feature_matrix, return_shape=3):
     r = dense_res_block(r, 256)
     r = dense_res_block(r, 128)
     r = dense_res_block(r, 32)
+    r = dense_res_block(r, 8)
+    return Dense(return_shape, activation='linear')(r)
+
+
+def res_model_small(feature_matrix, return_shape):
+    r = Dense(512, activation='relu')(feature_matrix)
+    r = dense_res_block(r, 128)
+    r = dense_res_block(r, 128)
+    r = dense_res_block(r, 64)
+    r = dense_res_block(r, 32)
+    r = dense_res_block(r, 16)
+    r = dense_res_block(r, 8)
     r = dense_res_block(r, 8)
     return Dense(return_shape, activation='linear')(r)
 
@@ -120,13 +132,14 @@ def get_model(predict_force_only=False):
 
     # force network
     if ModelConstants.resnet:
-        force = res_model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
+        #output = res_model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
+        output = res_model_small(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
     else:
-        force = model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
+        output = model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
 
     return Model(
         inputs=[input_local_matrix, input_atomic_numbers, input_long_range_matrix, input_long_range_atomic_features],
-        outputs=force
+        outputs=output
     )
 
 

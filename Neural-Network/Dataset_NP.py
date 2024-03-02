@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 from Constants import Dataset, Keys
@@ -210,7 +211,7 @@ def pad_df_entry(entry, n_max, expected_width):
     return np.array(padded)
 
 
-def create_dataset(paths, grid_size, save_path, n_samples_per=None):
+def create_dataset(paths, grid_size, save_folder, val_split=0.1, n_samples_per=None):
     # create Pandas DataFrame
     df = None
     keys = [Keys.LOCAL_DISTANCE_MATRIX_KEY, Keys.LOCAL_ATOMIC_NUMBERS_KEY, Keys.LONG_RANGE_DISTANCE_MATRIX_KEY,
@@ -276,14 +277,21 @@ def create_dataset(paths, grid_size, save_path, n_samples_per=None):
     )
     print("Padded matrices")
 
+    print("Splitting dataset...")
+    # split the dataset
+    train_df = df.sample(frac=1 - val_split, random_state=42)
+    val_df = df.drop(train_df.index)
+    print("Split dataset")
+
     print("Saving DataFrame...")
-    # save the dataframe
-    # add the grid size to the save path
-    if save_path.endswith(".pkl.gzip"):
-        save_path = save_path.replace(".pkl.gzip", f"_grid_size_{grid_size}.pkl.gzip")
-    else:
-        save_path = f"{save_path}_grid_size_{grid_size}.pkl.gzip"
-    df.to_pickle(save_path, compression="gzip")
+    # save the dataframes in the save_folder
+    # create the folder if it does not exist
+    save_folder = save_folder + f"_grid_size_{grid_size}_n_samples_{n_samples_per}"
+    if os.path.exists(save_folder):
+        raise FileExistsError(f"The folder {save_folder} already exists")
+    os.makedirs(save_folder)
+    train_df.to_pickle(os.path.join(save_folder, "train.pkl.gzip"), compression="gzip")
+    val_df.to_pickle(os.path.join(save_folder, "val.pkl.gzip"), compression="gzip")
     print("Saved DataFrame")
 
 
@@ -394,5 +402,5 @@ if __name__ == "__main__":
              './../Datasets/md17_toluene.npz',
              './../Datasets/md17_uracil.npz']
 
-    save_path = "./../Datasets/df_8molecules"
-    create_dataset(files, grid_size=1, save_path=save_path, n_samples_per=1000)
+    save_folder = "./../Datasets/df_8molecules"
+    create_dataset(files, grid_size=1, save_folder=save_folder, n_samples_per=5000)
