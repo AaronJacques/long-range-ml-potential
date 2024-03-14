@@ -68,42 +68,15 @@ def res_model(feature_matrix, return_shape):
     r = dense_res_block(r, 512)
     r = dense_res_block(r, 512)
     r = dense_res_block(r, 512)
-    r = dense_res_block(r, 256)
-    r = dense_res_block(r, 256)
-    r = dense_res_block(r, 128)
-    r = dense_res_block(r, 32)
-    r = dense_res_block(r, 8)
+    r = dense_res_block(r, 512)
+    r = dense_res_block(r, 512)
     return Dense(return_shape, activation='linear')(r)
 
 
 def res_model_small(feature_matrix, return_shape):
-    r = Dense(512, activation='relu')(feature_matrix)
-    r = dense_res_block(r, 128)
-    r = dense_res_block(r, 128)
-    r = dense_res_block(r, 64)
-    r = dense_res_block(r, 32)
-    r = dense_res_block(r, 16)
-    r = dense_res_block(r, 8)
-    r = dense_res_block(r, 8)
-    return Dense(return_shape, activation='linear')(r)
-
-
-def model(feature_matrix, return_shape=3):
-    r = Dense(512, activation='relu')(feature_matrix)
-    r = Dropout(0.2)(r)
-    r = Dense(512, activation='relu')(feature_matrix)
-    r = Dropout(0.2)(r)
-    r = Dense(512, activation='relu')(r)
-    r = Dropout(0.2)(r)
-    r = Dense(256, activation='relu')(r)
-    r = Dropout(0.2)(r)
-    r = Dense(256, activation='relu')(r)
-    r = Dropout(0.2)(r)
-    r = Dense(128, activation='relu')(r)
-    r = Dropout(0.2)(r)
-    r = Dense(32, activation='relu')(r)
-    r = Dropout(0.2)(r)
-    r = Dense(8, activation='relu')(r)
+    r = Dense(256, activation='relu')(feature_matrix)
+    r = dense_res_block(r, 256)
+    r = dense_res_block(r, 256)
     return Dense(return_shape, activation='linear')(r)
 
 
@@ -131,11 +104,10 @@ def get_model(predict_force_only=False):
     flattened_feature_matrix = Flatten()(concatenated_feature_matrix)
 
     # force network
-    if ModelConstants.resnet:
-        #output = res_model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
+    if ModelConstants.small_model:
         output = res_model_small(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
     else:
-        output = model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
+        output = res_model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
 
     return Model(
         inputs=[input_local_matrix, input_atomic_numbers, input_long_range_matrix, input_long_range_atomic_features],
