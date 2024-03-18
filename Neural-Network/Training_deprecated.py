@@ -52,7 +52,7 @@ class ForceMSE(losses.Loss):
 
 def compile_model(model):
     lr_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(
-        initial_learning_rate=Hyperparameters.learning_rate,
+        initial_learning_rate=Hyperparameters.initial_learning_rate,
         decay_steps=Hyperparameters.decay_steps,
         decay_rate=Hyperparameters.decay_rate,
         staircase=True
@@ -78,7 +78,7 @@ def create_callbacks():
         # time.strftime("%d-%m-%Y-%H-%M-%S", time.localtime(time.time()))
         time.strftime("%H-%M-%S", time.localtime(time.time()))
     )
-    folder_name = f"Model-{Hyperparameters.learning_rate}-LR-{Dataset.NAME}-DS-" + current_time
+    folder_name = f"Model-{Hyperparameters.initial_learning_rate}-LR-{Dataset.NAME}-DS-" + current_time
     checkpoint_path = os.path.join("..", "Checkpoints", folder_name, "cp-{epoch:04d}.ckpt")
     checkpoint_dir = os.path.dirname(checkpoint_path)
     print(checkpoint_dir)

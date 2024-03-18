@@ -64,23 +64,31 @@ def dense_res_block(input, units, activation='relu'):
 
 
 def res_model(feature_matrix, return_shape):
-    r = Dense(512, activation='relu')(feature_matrix)
-    r = dense_res_block(r, 512)
-    r = dense_res_block(r, 512)
-    r = dense_res_block(r, 512)
-    r = dense_res_block(r, 512)
-    r = dense_res_block(r, 512)
+    r = Dense(512, activation=ModelConstants.activation)(feature_matrix)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    return Dense(return_shape, activation='linear')(r)
+
+
+def res_o_shaped_model(feature_matrix, return_shape):
+    r = Dense(256, activation=ModelConstants.activation)(feature_matrix)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = dense_res_block(r, 256, activation=ModelConstants.activation)
     return Dense(return_shape, activation='linear')(r)
 
 
 def res_model_small(feature_matrix, return_shape):
-    r = Dense(256, activation='relu')(feature_matrix)
-    r = dense_res_block(r, 256)
-    r = dense_res_block(r, 256)
+    r = Dense(512, activation=ModelConstants.activation)(feature_matrix)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = dense_res_block(r, 512, activation=ModelConstants.activation)
     return Dense(return_shape, activation='linear')(r)
 
 
-def get_model(predict_force_only=False):
+def get_model():
     input_local_matrix = Input(shape=ModelConstants.input_shape_local_matrix, name='input_local_matrix')
     input_atomic_numbers = Input(shape=ModelConstants.input_shape_atomic_numbers, name='input_atomic_numbers')
     input_long_range_matrix = Input(shape=ModelConstants.input_shape_long_range_matrix, name='input_long_range_matrix')
@@ -105,9 +113,9 @@ def get_model(predict_force_only=False):
 
     # force network
     if ModelConstants.small_model:
-        output = res_model_small(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
+        output = res_model_small(flattened_feature_matrix, return_shape=1 if ModelConstants.predict_only_energy else 4)
     else:
-        output = res_model(flattened_feature_matrix, return_shape=3 if predict_force_only else 4)
+        output = res_model(flattened_feature_matrix, return_shape=1 if ModelConstants.predict_only_energy else 4)
 
     return Model(
         inputs=[input_local_matrix, input_atomic_numbers, input_long_range_matrix, input_long_range_atomic_features],

@@ -1,9 +1,10 @@
 import os
 import numpy as np
 import pandas as pd
-from Constants import Dataset, Keys
+from Constants import Dataset, Keys, Model
 from tqdm import tqdm
 import tensorflow as tf
+
 
 class GridCell:
     def __init__(self, grid_index, positions, atomic_numbers):
@@ -157,8 +158,8 @@ def create_matrices(grid_points):
             current_atomic_features = []
 
             for level, neighbours in grid_point.neighbour_tree.items():
-                if level < 2:
-                    # for level 0 and 1 we calculate the distance to all atoms directly
+                if level <= Dataset.MAX_LOCAL_LEVEL:
+                    # for level [0,...,MAX_LOCAL_LEVEL] we calculate the distance to all atoms directly
                     for neighbour in neighbours:
                         for neighbour_pos, neighbour_atomic_number in zip(neighbour.positions, neighbour.atomic_numbers):
                             # skip the current atom
@@ -286,7 +287,7 @@ def create_dataset(paths, grid_size, save_folder, val_split=0.1, n_samples_per=N
     print("Saving DataFrame...")
     # save the dataframes in the save_folder
     # create the folder if it does not exist
-    save_folder = save_folder + f"_grid_size_{grid_size}_n_samples_{n_samples_per}"
+    save_folder = save_folder + f"_max_local_level_{Dataset.MAX_LOCAL_LEVEL}_grid_size_{grid_size}_n_samples_{n_samples_per}"
     if os.path.exists(save_folder):
         raise FileExistsError(f"The folder {save_folder} already exists")
     os.makedirs(save_folder)
@@ -351,39 +352,63 @@ def create_tf_dataset(path):
     df = pd.read_pickle(path, compression="gzip")
 
     # get the shapes of the matrices (all matrices have the same shape)
-    local_distance_matrix_shape = df[Keys.LOCAL_DISTANCE_MATRIX_KEY][0].shape[1:]
-    local_atomic_numbers_shape = df[Keys.LOCAL_ATOMIC_NUMBERS_KEY][0].shape[1:]
-    long_range_distance_matrix_shape = df[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY][0].shape[1:]
-    long_range_atomic_features_shape = df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY][0].shape[1:]
+    local_distance_matrix_shape = df[Keys.LOCAL_DISTANCE_MATRIX_KEY].iloc[0].shape[1:]
+    local_atomic_numbers_shape = df[Keys.LOCAL_ATOMIC_NUMBERS_KEY].iloc[0].shape[1:]
+    long_range_distance_matrix_shape = df[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY].iloc[0].shape[1:]
+    long_range_atomic_features_shape = df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY].iloc[0].shape[1:]
 
     def generator():
         for _, row in df.iterrows():
-            yield (
-                row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
-                row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
-                row[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY],
-                row[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY],
-                row[Keys.FORCE_KEY],
-                np.array([row[Keys.ENERGY_KEY]])
-            )
+            if Model.predict_only_energy:
+                yield (
+                    row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
+                    row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
+                    row[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY],
+                    row[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY],
+                    np.array([row[Keys.ENERGY_KEY]])
+                )
+            else:
+                yield (
+                    row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
+                    row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
+                    row[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY],
+                    row[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY],
+                    row[Keys.FORCE_KEY],
+                    np.array([row[Keys.ENERGY_KEY]])
+                )
 
-    dataset = tf.data.Dataset.from_generator(generator, output_signature=(
-        tf.TensorSpec(shape=(None, *local_distance_matrix_shape,), dtype=tf.float32),
-        tf.TensorSpec(shape=(None, *local_atomic_numbers_shape,), dtype=tf.int32),
-        tf.TensorSpec(shape=(None, *long_range_distance_matrix_shape,), dtype=tf.float32),
-        tf.TensorSpec(shape=(None, *long_range_atomic_features_shape,), dtype=tf.float32),
-        tf.TensorSpec(shape=(None, 3,), dtype=tf.float32),  # (fx, fy, fz)
-        tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
-    ))
+    if Model.predict_only_energy:
+        dataset = tf.data.Dataset.from_generator(generator, output_signature=(
+            tf.TensorSpec(shape=(None, *local_distance_matrix_shape), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, *local_atomic_numbers_shape), dtype=tf.int32),
+            tf.TensorSpec(shape=(None, *long_range_distance_matrix_shape), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, *long_range_atomic_features_shape), dtype=tf.float32),
+            tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
+        ))
+    else:
+        dataset = tf.data.Dataset.from_generator(generator, output_signature=(
+            tf.TensorSpec(shape=(None, *local_distance_matrix_shape,), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, *local_atomic_numbers_shape,), dtype=tf.int32),
+            tf.TensorSpec(shape=(None, *long_range_distance_matrix_shape,), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, *long_range_atomic_features_shape,), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, 3,), dtype=tf.float32),  # (fx, fy, fz)
+            tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
+        ))
 
     # Shuffle
     dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)
 
     # energies and forces are the labels and the rest is the input
-    dataset = dataset.map(
-        lambda x1, x2, x3, x4, y1, y2: ((x1, x2, x3, x4), (y1, y2)),
-        num_parallel_calls=tf.data.experimental.AUTOTUNE
-    )
+    if Model.predict_only_energy:
+        dataset = dataset.map(
+            lambda x1, x2, x3, x4, y: ((x1, x2, x3, x4), y),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE
+        )
+    else:
+        dataset = dataset.map(
+            lambda x1, x2, x3, x4, y1, y2: ((x1, x2, x3, x4), (y1, y2)),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE
+        )
 
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
@@ -402,4 +427,4 @@ if __name__ == "__main__":
     files = [files[0]]  # asprin
 
     save_folder = './../Datasets/aspirin'  # "./../Datasets/df_8molecules"
-    create_dataset(files, grid_size=1, save_folder=save_folder, n_samples_per=40000)
+    create_dataset(files, grid_size=Dataset.GRID_SIZE, save_folder=save_folder, n_samples_per=40000)
