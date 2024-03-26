@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import losses
 
-from Constants import Dataset, Hyperparameters, Logging
+from Constants import Dataset, Hyperparameters, Logging, Model
 from Dataset import create_tf_dataset, create_tf_dataset_force_only
 from Model import get_model
 
@@ -70,10 +70,14 @@ def start_training():
             # Total energy is the sum of atomic energies
             total_energy_pred = tf.math.reduce_sum(energy_pred)
 
-            # Calculate losses
-            total_energy_loss = losses.MSE(total_energy, total_energy_pred)
-            force_loss = losses.MSE(forces, force_pred)
-            force_loss = tf.reduce_mean(force_loss)
+            # Calculate energy loss
+            total_energy_loss = tf.reduce_mean(tf.square(total_energy_pred - total_energy)) # losses.MSE(total_energy, total_energy_pred)
+
+            # Calculate force loss
+            force_pred_reshape = tf.reshape(force_pred, [-1])
+            forces_reshape = tf.reshape(forces, [-1])
+            diff_f = forces_reshape - force_pred_reshape
+            force_loss = tf.reduce_mean(tf.square(diff_f))
 
             # Total loss is the sum of total energy loss and force loss
             total_loss = p_energy * total_energy_loss + p_force * force_loss
@@ -83,6 +87,27 @@ def start_training():
         optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
         return total_loss, total_energy_loss, force_loss
+
+    @tf.function
+    def train_step_energy_only(inputs, outputs):
+        # Watch the model's trainable variables
+        with tf.GradientTape() as tape:
+            # Make predictions
+            prediction = model([inputs[0], inputs[1], inputs[2], inputs[3]])
+
+            # Total energy is the sum of atomic energies
+            total_energy_pred = tf.math.reduce_sum(prediction)
+
+            # Calculate energy loss
+            total_energy_loss = tf.reduce_mean(
+                tf.square(total_energy_pred - outputs))  # losses.MSE(total_energy, total_energy_pred)
+
+        # Compute and apply gradients
+        gradients = tape.gradient(total_energy_loss, model.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        return total_energy_loss
+
 
     @tf.function
     def val_step(inputs, outputs, p_energy, p_force):
@@ -121,7 +146,7 @@ def start_training():
     # Optimizer with learning rate scheduler
     lr_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate=Hyperparameters.initial_learning_rate,
-        decay_steps=Hyperparameters.decay_steps,
+        decay_steps=Hyperparameters.lr_decay_steps,
         decay_rate=Hyperparameters.decay_rate,
         staircase=True
     )
@@ -143,48 +168,55 @@ def start_training():
         force_losses = []
         for element in train_ds:
             x, y = element
-            training_loss, total_energy_loss, force_loss = train_step(
-                inputs=x,
-                outputs=y,
-                p_energy=tf.constant(p_energy, dtype=tf.float32),
-                p_force=tf.constant(p_force, dtype=tf.float32)
-            )
+            if Model.predict_only_energy:
+                total_energy_loss = train_step_energy_only(
+                    inputs=x,
+                    outputs=y
+                )
+            else:
+                training_loss, total_energy_loss, force_loss = train_step(
+                    inputs=x,
+                    outputs=y,
+                    p_energy=tf.constant(p_energy, dtype=tf.float32),
+                    p_force=tf.constant(p_force, dtype=tf.float32)
+                )
 
             # training progress
-            train_losses.append(training_loss)
+            train_losses.append(training_loss if not Model.predict_only_energy else np.nan)
             energy_losses.append(total_energy_loss)
-            force_losses.append(force_loss)
+            force_losses.append(force_loss if not Model.predict_only_energy else np.nan)
             i += 1
             step += 1
 
             # update the weightings
-            p_energy = get_weighting_from_step(
-                step,
-                Hyperparameters.p_energy_limit,
-                Hyperparameters.p_energy_start,
-                Hyperparameters.decay_steps,
-                Hyperparameters.decay_rate
-            )
-            p_force = get_weighting_from_step(
-                step,
-                Hyperparameters.p_force_limit,
-                Hyperparameters.p_force_start,
-                Hyperparameters.decay_steps,
-                Hyperparameters.decay_rate
-            )
+            if not Model.predict_only_energy:
+                p_energy = get_weighting_from_step(
+                    step,
+                    Hyperparameters.p_energy_limit,
+                    Hyperparameters.p_energy_start,
+                    Hyperparameters.decay_steps,
+                    Hyperparameters.decay_rate
+                )
+                p_force = get_weighting_from_step(
+                    step,
+                    Hyperparameters.p_force_limit,
+                    Hyperparameters.p_force_start,
+                    Hyperparameters.decay_steps,
+                    Hyperparameters.decay_rate
+                )
 
             # Print mean loss every 1000 steps
             if i % 1000 == 0:
                 print(f"Epoch {epoch} - Training step {i}/{dataset_size if dataset_size else 'Unknown'}")
-                print(f"Total loss: {training_loss:.2f}")
-                print(f"Energy loss: {total_energy_loss:.2f} kcal mol^-1")
-                print(f"Force loss: {force_loss:.2f} kcal mol^-1 Å^-1", end="\n\n")
-                print(f"Learning rate: {optimizer.learning_rate(step).numpy()}")
+                if not Model.predict_only_energy:
+                    print(f"Total loss: {training_loss:.2f}")
+                    print(f"Force loss: {force_loss:.2f} kcal mol^-1 Å^-1")
+                print(f"Energy loss: {total_energy_loss:.2f} kcal mol^-1", end="\n\n")
 
         dataset_size = i
         epoch_train_loss = np.mean(train_losses)
-        epoch_energy_loss = np.mean(energy_losses)
         epoch_force_loss = np.mean(force_losses)
+        epoch_energy_loss = np.mean(energy_losses)
 
         # Validation
         epoch_val_loss = None
@@ -225,15 +257,16 @@ def start_training():
         )
 
         # print training progress (one number after the comma)
-        print(f"Epoch {epoch} - Training loss: {epoch_train_loss:.2f}")
+        if not Model.predict_only_energy:
+            print(f"Epoch {epoch} - p_energy: {p_energy}")
+            print(f"Epoch {epoch} - p_force: {p_force}")
+            print(f"Epoch {epoch} - Training loss: {epoch_train_loss:.2f}")
+            print(f"Epoch {epoch} - Force loss: {epoch_force_loss:.2f} kcal mol^-1 Å^-1")
         print(f"Epoch {epoch} - Energy loss: {epoch_energy_loss:.2f} kcal mol^-1")
-        print(f"Epoch {epoch} - Force loss: {epoch_force_loss:.2f} kcal mol^-1 Å^-1")
         if epoch_val_loss is not None:
             print(f"Epoch {epoch} - Validation loss: {epoch_val_loss:.2f}")
             print(f"Epoch {epoch} - Validation energy loss: {epoch_val_energy_loss:.2f} kcal mol^-1")
             print(f"Epoch {epoch} - Validation force loss: {epoch_val_force_loss:.2f} kcal mol^-1 Å^-1")
-        print(f"Epoch {epoch} - p_energy: {p_energy}")
-        print(f"Epoch {epoch} - p_force: {p_force}")
 
         # Save the model after each epoch
         model.save(os.path.join(checkpoint_dir, f"model_epoch_{epoch}.h5"))

@@ -130,6 +130,42 @@ def create_expanded_distance_matrix(distance_matrices):
     return expanded_distance_matrices
 
 
+def create_expanded_distance_matrix_local(distance_matrices):
+    expanded_distance_matrices = []
+    for i, distance_matrix in enumerate(distance_matrices):
+
+        if len(distance_matrix) == 0:
+            expanded_distance_matrices.append([])
+            continue
+
+        # calculate the norm distances r of each distance vector (row)
+        norm_vector = np.linalg.norm(distance_matrix, axis=1, ord=2)
+
+        # if the norm is smaller than INNER_CUT_OFF, use 1 / r
+        # if the norm is INNNER_CUT_OFF < r < CUT_OFF,
+        # use 1 / r * (0.5 * cos(pi * (r - INNER_CUT_OFF) / (CUT_OFF - INNER_CUT_OFF)) + 0.5)
+        # otherwise, use 0
+        s_vector = np.zeros_like(norm_vector)
+
+        mask = norm_vector < Dataset.INNER_CUT_OFF
+        s_vector[mask] = 1 / norm_vector[mask]
+
+        mask = (Dataset.INNER_CUT_OFF <= norm_vector) & (norm_vector < Dataset.CUT_OFF)
+        s_vector[mask] = 1 / norm_vector[mask] * (0.5 * np.cos(np.pi * (norm_vector[mask] - Dataset.INNER_CUT_OFF) / (Dataset.CUT_OFF - Dataset.INNER_CUT_OFF)) + 0.5)
+
+        # normalize the distance matrix by multiplying with s_vector and dividing by norm_vector
+        normalized_distance_matrix = distance_matrix * s_vector[:, None] / norm_vector[:, None]
+
+        # add the s_vector to the normalized distance matrix
+        expanded_distance_matrix = np.concatenate([s_vector[:, None], normalized_distance_matrix], axis=1)
+
+        # append the current expanded distance matrix to the list
+        expanded_distance_matrices.append(expanded_distance_matrix)
+
+    return expanded_distance_matrices
+
+
+
 # creating the distance matrix of a list of grid cells
 # the distance matrix for one atom of a grid cell has the shape (N, 3)
 # the function returns a list of distance matrix for all atoms of all grid cells
@@ -190,7 +226,7 @@ def create_matrices(grid_points):
             N_max_long_range = max(N_max_long_range, len(long_range_distance_matrix))
 
     # expand the distance matrices
-    local_distance_matrices = create_expanded_distance_matrix(local_distance_matrices)
+    local_distance_matrices = create_expanded_distance_matrix_local(local_distance_matrices)
     long_range_distance_matrices = create_expanded_distance_matrix(long_range_distance_matrices)
 
     return local_distance_matrices, local_atomic_numbers, long_range_distance_matrices, long_range_atomic_features, N_max_local, N_max_long_range
@@ -427,4 +463,4 @@ if __name__ == "__main__":
     files = [files[0]]  # asprin
 
     save_folder = './../Datasets/aspirin'  # "./../Datasets/df_8molecules"
-    create_dataset(files, grid_size=Dataset.GRID_SIZE, save_folder=save_folder, n_samples_per=40000)
+    create_dataset(files, grid_size=Dataset.GRID_SIZE, save_folder=save_folder, n_samples_per=50000)
