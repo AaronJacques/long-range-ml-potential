@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
-    Input, Embedding, concatenate, Dense, Flatten, Lambda, Concatenate, Dropout, LayerNormalization, Add
+    Input, Embedding, concatenate, Dense, Flatten, Lambda, Concatenate, Dropout, LayerNormalization, Add, Reshape
 )
 
 from Constants import Model as ModelConstants
@@ -45,6 +45,27 @@ def dense_res_block(input, units, activation='relu'):
     return r
 
 
+def res_embedding_model(matrix, features, n_max):
+    # Extracting the first column using Lambda layer
+    first_column_local_matrix = Lambda(lambda x: x[:, :, 0])(matrix)
+
+    # insert the first column of local matrix into the atomic numbers matrix as a new column at the beginning
+    first_column_local_matrix = tf.expand_dims(first_column_local_matrix, axis=-1)
+    matrix = Concatenate(axis=-1)([first_column_local_matrix, features])
+    matrix = Flatten()(matrix)
+
+    # create embedding for the matrix with multiple res blocks
+    r = Dense(ModelConstants.embedding_dims[0], activation=ModelConstants.activation)(matrix)
+    for dim in ModelConstants.embedding_dims[1:]:
+        r = dense_res_block(r, dim, activation=ModelConstants.activation)
+
+    # reshape the output to the correct shape
+    r = Dense(n_max * ModelConstants.embedding_dims[-1], activation=ModelConstants.activation)(r)
+    r = Reshape((n_max, ModelConstants.embedding_dims[-1]))(r)
+
+    return r
+
+
 def res_model(feature_matrix, return_shape):
     r = Dense(512, activation=ModelConstants.activation)(feature_matrix)
     r = dense_res_block(r, 512, activation=ModelConstants.activation)
@@ -79,13 +100,17 @@ def get_model():
 
     # Local
     # embedding
-    local_embedding_layer = embedding(input_local_matrix, input_atomic_numbers)
+    local_embedding_layer = res_embedding_model(input_local_matrix, input_atomic_numbers, ModelConstants.n_max_local)
     # feature matrix
     local_feature_matrix = feature_matrix(input_local_matrix, local_embedding_layer)
 
     # Long range
     # embedding
-    long_range_embedding_layer = embedding(input_long_range_matrix, input_long_range_atomic_features)
+    long_range_embedding_layer = res_embedding_model(
+        input_long_range_matrix,
+        input_long_range_atomic_features,
+        ModelConstants.n_max_long_range
+    )
     # feature matrix
     long_range_feature_matrix = feature_matrix(input_long_range_matrix, long_range_embedding_layer)
 

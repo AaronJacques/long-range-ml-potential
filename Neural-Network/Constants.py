@@ -29,21 +29,22 @@ class Dataset:
     MAX_ATOM_ELEMENTS = 100
     GRID_SIZE = 1  # in Angstrom
     MAX_LOCAL_LEVEL = 6  # in units of GRID_SIZE
-    # has to be <= GRID_SIZE * MAX_LOCAL_LEVEL
-    CUT_OFF = GRID_SIZE * MAX_LOCAL_LEVEL  # in Angstrom
+    # CUT_OFF is calculated such that all atoms in grid cells with level <= MAX_LOCAL_LEVEL are included
+    CUT_OFF = (MAX_LOCAL_LEVEL + 1 + 0.5**0.5) * GRID_SIZE  # in Angstrom
     # has to be smaller than CUT_OFF
     INNER_CUT_OFF = CUT_OFF - 0.2  # in Angstrom
     SHUFFLE_BUFFER_SIZE = 1000
     BATCH_SIZE = 64
+    use_charge_number = True
 
 
 @dataclass(frozen=True)
 class Hyperparameters:
-    initial_learning_rate = 2.5e-4  # paper: 5e-4
+    initial_learning_rate = 1e-3  # paper: 5e-4
     # paper: 32e+5 (but uses 2e+7 training samples => updates 6 times per epoch)
     # currently best: 1e+3
-    lr_decay_steps = 9e+4  # 18e+4  # TODO: Check if different decay steps for lr are better
-    decay_steps = 12e+3
+    lr_decay_steps = 9e+4  # every 2 epochs  # TODO: Check if different decay steps for lr are better
+    decay_steps = 15e+3  # 3 times per epoch
     decay_rate = 0.97  # paper: 0.96
     EPOCHS = 1000
     # paper: start with 0.02 and ends with 1.0
@@ -60,15 +61,15 @@ class Hyperparameters:
 class Model:
     small_model = True
     activation = "relu"  # "tanh" or "relu" or "gelu"
-    n_max_local = 20  # 8 molecules: 8; aspirin: 6 (grid size 1); aspirin: 11 (grid size 1.5); aspirin: 13 (grid size 1, max local level 2) aspirin: 20 (grid size 1, max local level 4) aspirin: 20 (grid size 1, max local level 6) aspirin: 20  (grid size 1, max local level 8)
-    n_max_long_range = 6  # 8 molecules: 20; aspirin: 20 (grid size 1); aspirin: 18 (grid size 1.5);  aspirin: 19 (grid size 1, max local level 2) aspirin: 12 (grid size 1, max local level 4) aspirin: 6 (grid size 1, max local level 6) aspirin: 0  (grid size 1, max local level 8)
+    n_max_local = 20  # aspirin: 20 (grid size 1, max local level 6)
+    n_max_long_range = 4  # aspirin: 4 (grid size 1, max local level 6)
     input_shape_local_matrix = (n_max_local, 4)
     input_shape_atomic_numbers = (n_max_local, 2)
     input_shape_long_range_matrix = (n_max_long_range, 4)
     input_shape_long_range_atomic_features = (n_max_long_range, Dataset.MAX_ATOM_ELEMENTS + 1)
     M1 = 100  # paper uses 100
-    M2 = 4  # paper uses 4
-    embedding_dims = [50, 100]  # paper uses [50, 100]
+    M2 = 8  # paper uses 4
+    embedding_dims = [64, 128]
     predict_only_energy = False
 
 

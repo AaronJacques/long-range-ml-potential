@@ -70,12 +70,62 @@ class GridCell:
     def get_atomic_number_sum(self):
         return np.sum(self.atomic_numbers)
 
-    # get the center of mass of the grid cell
+    def __get_main_group_number(self, atomic_number):
+        # Main groups and their typical elements by atomic number
+        group_1 = {1, 3, 11, 19, 37, 55, 87}  # Hydrogen and Alkali metals
+        group_2 = {4, 12, 20, 38, 56, 88}  # Alkaline earth metals
+        # Transition metals by group
+        group_3 = {21, 39, 57, 89}
+        group_4 = {22, 40, 72, 104}
+        group_5 = {23, 41, 73, 105}
+        group_6 = {24, 42, 74, 106}
+        group_7 = {25, 43, 75, 107}
+        group_8 = {26, 44, 76, 108}
+        group_9 = {27, 45, 77, 109}
+        group_10 = {28, 46, 78, 110}
+        group_11 = {29, 47, 79, 111}
+        group_12 = {30, 48, 80, 112}
+        group_13 = {5, 13, 31, 49, 81, 113}  # Boron group
+        group_14 = {6, 14, 32, 50, 82, 114}  # Carbon group
+        group_15 = {7, 15, 33, 51, 83, 115}  # Nitrogen group
+        group_16 = {8, 16, 34, 52, 84, 116}  # Oxygen group
+        group_17 = {9, 17, 35, 53, 85, 117}  # Halogens
+        group_18 = {2, 10, 18, 36, 54, 86, 118}  # Noble gases
+
+        groups = {
+            1: group_1, 2: group_2,
+            3: group_3, 4: group_4, 5: group_5, 6: group_6,
+            7: group_7, 8: group_8, 9: group_9, 10: group_10,
+            11: group_11, 12: group_12,
+            13: group_13, 14: group_14, 15: group_15,
+            16: group_16, 17: group_17, 18: group_18
+        }
+
+        for group, elements in groups.items():
+            if atomic_number in elements:
+                return group
+        return None
+
+
+        # get the center of mass of the grid cell
     # weighted by the atomic numbers
     def get_center_of_mass(self):
-        total_mass = self.get_atomic_number_sum()
-        total_mass_position = np.sum(np.array(self.positions) * np.array(self.atomic_numbers).reshape(-1, 1), axis=0)
-        return total_mass_position / total_mass
+        if Dataset.use_charge_number:
+            total_mass = self.get_atomic_number_sum()
+            total_mass_position = np.sum(
+                np.array(self.positions) * np.array(self.atomic_numbers).reshape(-1, 1),
+                axis=0
+            )
+            return total_mass_position / total_mass
+        else:
+            # weight by the main group number
+            main_group_numbers = [self.__get_main_group_number(atomic_number) for atomic_number in self.atomic_numbers]
+            total_mass = np.sum(main_group_numbers)
+            total_mass_position = np.sum(
+                np.array(self.positions) * np.array(main_group_numbers).reshape(-1, 1),
+                axis=0
+            )
+            return total_mass_position / total_mass
 
     # each index corresponds to the atomic number (0: H, 1: He, etc.)
     # the value is the number of atoms of that type in the grid cell
@@ -106,71 +156,31 @@ def create_grid(positions, atomic_numbers, grid_size):
     return list(grid.values())
 
 
-# create the expanded distance matrix
-# the expanded distance matrix has the shape (N, 4) where N is the number of distance vectors
-# it contains the normalized distance vector and the inverse of the distance
-def create_expanded_distance_matrix(distance_matrices):
-    expanded_distance_matrices = []
-    for i, distance_matrix in enumerate(distance_matrices):
-
-        if len(distance_matrix) == 0:
-            expanded_distance_matrices.append([])
-            continue
-
-        # calculate the inverse of the distance
-        inverse_distance = np.linalg.norm(distance_matrix, axis=1)
-        inverse_distance[inverse_distance == 0] = 1
-
-        # normalize the distance matrix
-        normalized_distance_matrix = distance_matrix / inverse_distance[:, None]
-
-        # append the normalized distance matrix and the inverse of the distance to the list
-        expanded_distance_matrices.append(np.concatenate([inverse_distance[:, None], normalized_distance_matrix], axis=1))
-
-    return expanded_distance_matrices
+def get_expanded_distance_vector(distance_vector, norm):
+    inverse_distance = 1 / norm if norm > 0 else 0
+    return np.concatenate([np.array([inverse_distance]), distance_vector * inverse_distance])
 
 
-def create_expanded_distance_matrix_local(distance_matrices):
-    expanded_distance_matrices = []
-    for i, distance_matrix in enumerate(distance_matrices):
+def get_s(norm):
+    # if the norm is smaller than INNER_CUT_OFF, use 1 / r
+    if norm < Dataset.INNER_CUT_OFF:
+        return 1 / norm
 
-        if len(distance_matrix) == 0:
-            expanded_distance_matrices.append([])
-            continue
+    # if the norm is INNNER_CUT_OFF < r < CUT_OFF,
+    # use 1 / r * (0.5 * cos(pi * (r - INNER_CUT_OFF) / (CUT_OFF - INNER_CUT_OFF)) + 0.5)
+    if Dataset.INNER_CUT_OFF <= norm < Dataset.CUT_OFF:
+        return 1 / norm * (0.5 * np.cos(np.pi * (norm - Dataset.INNER_CUT_OFF) / (Dataset.CUT_OFF - Dataset.INNER_CUT_OFF))
+                           + 0.5)
 
-        # calculate the norm distances r of each distance vector (row)
-        norm_vector = np.linalg.norm(distance_matrix, axis=1, ord=2)
+    # otherwise, use 0
+    return 0
 
-        # if the norm is smaller than INNER_CUT_OFF, use 1 / r
-        # if the norm is INNNER_CUT_OFF < r < CUT_OFF,
-        # use 1 / r * (0.5 * cos(pi * (r - INNER_CUT_OFF) / (CUT_OFF - INNER_CUT_OFF)) + 0.5)
-        # otherwise, use 0
-        s_vector = np.zeros_like(norm_vector)
 
-        mask = norm_vector < Dataset.INNER_CUT_OFF
-        s_vector[mask] = 1 / norm_vector[mask]
-
-        mask = (Dataset.INNER_CUT_OFF <= norm_vector) & (norm_vector < Dataset.CUT_OFF)
-        s_vector[mask] = 1 / norm_vector[mask] * (0.5 * np.cos(np.pi * (norm_vector[mask] - Dataset.INNER_CUT_OFF) / (Dataset.CUT_OFF - Dataset.INNER_CUT_OFF)) + 0.5)
-
-        # normalize the distance matrix by multiplying with s_vector and dividing by norm_vector
-        normalized_distance_matrix = distance_matrix * s_vector[:, None] / norm_vector[:, None]
-
-        # add the s_vector to the normalized distance matrix
-        expanded_distance_matrix = np.concatenate([s_vector[:, None], normalized_distance_matrix], axis=1)
-
-        # append the current expanded distance matrix to the list
-        expanded_distance_matrices.append(expanded_distance_matrix)
-
-    return expanded_distance_matrices
-
+def get_expanded_distance_vector_local(distance_vector, norm, s):
+    return np.concatenate([np.array([s]), distance_vector * s / norm])
 
 
 # creating the distance matrix of a list of grid cells
-# the distance matrix for one atom of a grid cell has the shape (N, 3)
-# the function returns a list of distance matrix for all atoms of all grid cells
-# and the corresponding list of atomic numbers of the reference atom with shape (N)
-# the
 def create_matrices(grid_points):
     # create the distance matrix
     local_distance_matrices = []
@@ -184,7 +194,6 @@ def create_matrices(grid_points):
     for i, grid_point in enumerate(grid_points):
         # loop over all atoms in the grid cell
         for position, atomic_number in zip(grid_point.positions, grid_point.atomic_numbers):
-            # TODO: Use NumPy instead of Python lists and calculate the number of distance vectors beforehand
             local_distance_matrix = []
             long_range_distance_matrix = []
             # list of lists of the form [atom_number_1, atom_number_2
@@ -192,28 +201,55 @@ def create_matrices(grid_points):
             # atom_number_2 is the atomic number of the atom in the distance vector
             current_atomic_numbers = []
             current_atomic_features = []
+            # list of grid cells that are neighbours of the current grid cell
+            # if the distance to an atom in the neighbour is smaller than the cut-off it counts as a local neighbour
+            # and is then removed from the neighbour GridCell
+            current_neighbours = []
 
             for level, neighbours in grid_point.neighbour_tree.items():
-                if level <= Dataset.MAX_LOCAL_LEVEL:
-                    # for level [0,...,MAX_LOCAL_LEVEL] we calculate the distance to all atoms directly
-                    for neighbour in neighbours:
-                        for neighbour_pos, neighbour_atomic_number in zip(neighbour.positions, neighbour.atomic_numbers):
-                            # skip the current atom
-                            if (neighbour_pos == position).all(): # only compare the positions because no two atoms can have the same position
-                                continue
+                for neighbour in neighbours:
+                    # initialize new neighbour
+                    updated_neighbour = GridCell(neighbour.grid_index, [], [])
 
-                            # calculate the distance between the two atoms
-                            local_distance_matrix.append(position - neighbour_pos)
-                            # add the atomic numbers to the list
-                            current_atomic_numbers.append([atomic_number, neighbour_atomic_number])
+                    for (n_index, (neighbour_pos, neighbour_atomic_number)) in enumerate(zip(neighbour.positions, neighbour.atomic_numbers)):
+                        # skip the current atom
+                        if (neighbour_pos == position).all():
+                            continue
 
-                else:
-                    # for all other levels we calculate the distance to the center of mass
-                    for neighbour in neighbours:
                         # calculate the distance between the two atoms
-                        long_range_distance_matrix.append(position - neighbour.get_center_of_mass())
-                        # add the atomic numbers to the list
-                        current_atomic_features.append(np.concatenate((np.array([atomic_number]), neighbour.get_atomic_features())))
+                        distance_vector = position - neighbour_pos
+                        norm = np.linalg.norm(distance_vector, ord=2)
+                        s = get_s(norm)
+
+                        # skip if outside the cut-off
+                        if norm > Dataset.CUT_OFF:
+                            # add it to the updated_neighbour
+                            updated_neighbour.add_atom(neighbour_pos, neighbour_atomic_number)
+                            continue
+
+                        # append the expanded distance vector to the list
+                        local_distance_matrix.append(get_expanded_distance_vector_local(distance_vector, norm, s))
+                        current_atomic_numbers.append([atomic_number, neighbour_atomic_number])
+
+                    # add the updated neighbour to the list of neighbours
+                    # if the level is <= MAX_LOCAL_LEVEL do not add it to the neighbours list because it is a
+                    # local neighbour and is already in the local_distance_matrix
+                    if level > Dataset.MAX_LOCAL_LEVEL:
+                        current_neighbours.append(updated_neighbour)
+
+            # for the neighbours only use center of mass
+            for neighbour in current_neighbours:
+                # check if the neighbour is empty
+                if len(neighbour.positions) == 0:
+                    continue
+                # calculate the distance between the two atoms
+                distance_vector = position - neighbour.get_center_of_mass()
+                # append the expanded distance vector to the list
+                long_range_distance_matrix.append(
+                    get_expanded_distance_vector(distance_vector, np.linalg.norm(distance_vector, ord=2))
+                )
+                # add the atomic numbers to the list
+                current_atomic_features.append(np.concatenate((np.array([atomic_number]), neighbour.get_atomic_features())))
 
             # append
             local_distance_matrices.append(np.array(local_distance_matrix))
@@ -224,10 +260,6 @@ def create_matrices(grid_points):
             # update the maximum length
             N_max_local = max(N_max_local, len(local_distance_matrix))
             N_max_long_range = max(N_max_long_range, len(long_range_distance_matrix))
-
-    # expand the distance matrices
-    local_distance_matrices = create_expanded_distance_matrix_local(local_distance_matrices)
-    long_range_distance_matrices = create_expanded_distance_matrix(long_range_distance_matrices)
 
     return local_distance_matrices, local_atomic_numbers, long_range_distance_matrices, long_range_atomic_features, N_max_local, N_max_long_range
 
@@ -431,9 +463,6 @@ def create_tf_dataset(path):
             tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
         ))
 
-    # Shuffle
-    dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)
-
     # energies and forces are the labels and the rest is the input
     if Model.predict_only_energy:
         dataset = dataset.map(
@@ -446,6 +475,11 @@ def create_tf_dataset(path):
             num_parallel_calls=tf.data.experimental.AUTOTUNE
         )
 
+    # cache the dataset
+    dataset = dataset.cache()
+
+    # Shuffle and prefetch
+    dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     return dataset
