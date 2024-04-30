@@ -27,7 +27,7 @@ class Dataset:
     TRAIN_NAME = "train.pkl.gzip"
     VAL_NAME = "val.pkl.gzip"
     MAX_ATOM_ELEMENTS = 100
-    GRID_SIZE = 1  # in Angstrom
+    GRID_SIZE = 3  # in Angstrom
     MAX_LOCAL_LEVEL = 6  # in units of GRID_SIZE
     # CUT_OFF is calculated such that all atoms in grid cells with level <= MAX_LOCAL_LEVEL are included
     CUT_OFF = (MAX_LOCAL_LEVEL + 1 + 0.5**0.5) * GRID_SIZE  # in Angstrom

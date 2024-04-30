@@ -7,7 +7,7 @@ import tensorflow as tf
 
 
 class GridCell:
-    def __init__(self, grid_index, positions, atomic_numbers):
+    def __init__(self, grid_index, positions, atomic_numbers, max_level):
         self.grid_index = grid_index
         self.positions = positions
         self.atomic_numbers = atomic_numbers
@@ -15,7 +15,7 @@ class GridCell:
         # the key is the level of the neighbour tree and the value
         # is a list of grid cells at that level
         # level: 0 is direct neighbours, 1 is second-degree neighbours, etc.
-        self.neighbour_tree = {}
+        self.neighbour_tree = [[] for _ in range(max_level + 1)]
         self.max_atom_elements = Dataset.MAX_ATOM_ELEMENTS
         self.atomic_features = self.__create_atomic_features()
 
@@ -55,16 +55,14 @@ class GridCell:
     def add_neighbours(self, grid):
         # loop over the points in the grid and
         # assign them a neighbour level
-        for coord, grid_cell in grid.items():
-            diff = np.abs(np.array(coord) - np.array(self.grid_index))
+        # calculate the level of the neighbour
+        current_grid_index = np.array(self.grid_index * len(grid)).reshape(len(grid), -1)
+        all_grid_indices = np.array([grid_cell.grid_index for grid_cell in grid])
+        diff = np.abs(all_grid_indices - current_grid_index)
+        levels = np.max(diff, axis=1)
 
-            # get the level of the neighbour
-            level = np.max(diff)
-
-            # add the neighbour to the neighbour tree
-            if level not in self.neighbour_tree:
-                self.neighbour_tree[level] = []
-            self.neighbour_tree[level].append(grid_cell)
+        for i in range(len(grid)):
+            self.neighbour_tree[levels[i]].append(grid[i])
 
     # get the sum of the atomic numbers of the grid cell
     def get_atomic_number_sum(self):
@@ -107,7 +105,7 @@ class GridCell:
         return None
 
 
-        # get the center of mass of the grid cell
+    # get the center of mass of the grid cell
     # weighted by the atomic numbers
     def get_center_of_mass(self):
         if Dataset.use_charge_number:
@@ -135,25 +133,45 @@ class GridCell:
 
 
 def create_grid(positions, atomic_numbers, grid_size):
-    # Determine the grid boundaries
     min_values = np.min(positions, axis=0)
-    max_values = np.max(positions, axis=0)
+    positions = np.array(positions)
+    grid_indices = np.floor((positions - min_values) / grid_size).astype(np.int32)
 
-    # Create an empty dictionary
-    grid = {}
+    # Unique indices with inverse mapping to reconstruct original grid cells
+    unique_indices, inverse = np.unique(grid_indices, axis=0, return_inverse=True)
 
-    # Assign each point to the corresponding grid box
+    # Determine the grid dimensions dynamically from max indices in each direction
+    max_index = np.max(unique_indices, axis=0)
+
+    # Calculate the distances to the nearest (0) and farthest (max_index) boundaries
+    dist_to_min = unique_indices  # Since min is always 0 in our adjusted grid index system
+    dist_to_max = max_index - unique_indices
+
+    # Maximum of distances in each dimension
+    max_dist = np.maximum(dist_to_min, dist_to_max)
+
+    # Calculate the maximum level for each cell (max value across dimensions)
+    max_levels = np.max(max_dist, axis=1)
+
+    # Create structured arrays or similar to hold data
+    grid = [
+        GridCell(
+            tuple(index),
+            [],
+            [],
+            max_levels[i]
+        ) for i, index in enumerate(unique_indices)
+    ]
+
+    # Add atoms
     for i, (point, atomic_number) in enumerate(zip(positions, atomic_numbers)):
-        grid_coordinates = tuple(((point - min_values) / grid_size).astype(int))
-        if grid_coordinates not in grid:
-            grid[grid_coordinates] = GridCell(grid_coordinates, [], [])
-        grid[grid_coordinates].add_atom(point, atomic_number)
+        grid[inverse[i]].add_atom(point, atomic_number)
 
     # add neighbours
-    for grid_point in grid.values():
+    for grid_point in grid:
         grid_point.add_neighbours(grid)
 
-    return list(grid.values())
+    return grid
 
 
 def get_expanded_distance_vector(distance_vector, norm):
@@ -191,7 +209,7 @@ def create_matrices(grid_points):
     N_max_local = 0
     N_max_long_range = 0
 
-    for i, grid_point in enumerate(grid_points):
+    for grid_point in grid_points:
         # loop over all atoms in the grid cell
         for position, atomic_number in zip(grid_point.positions, grid_point.atomic_numbers):
             local_distance_matrix = []
@@ -206,10 +224,10 @@ def create_matrices(grid_points):
             # and is then removed from the neighbour GridCell
             current_neighbours = []
 
-            for level, neighbours in grid_point.neighbour_tree.items():
+            for level, neighbours in enumerate(grid_point.neighbour_tree):
                 for neighbour in neighbours:
                     # initialize new neighbour
-                    updated_neighbour = GridCell(neighbour.grid_index, [], [])
+                    updated_neighbour = GridCell(neighbour.grid_index, [], [], max_level=1)
 
                     for (n_index, (neighbour_pos, neighbour_atomic_number)) in enumerate(zip(neighbour.positions, neighbour.atomic_numbers)):
                         # skip the current atom
@@ -495,6 +513,7 @@ if __name__ == "__main__":
              './../Datasets/md17_toluene.npz',
              './../Datasets/md17_uracil.npz']
     files = [files[0]]  # asprin
+    files = ['./../Datasets/md22_double-walled_nanotube.npz']
 
-    save_folder = './../Datasets/aspirin'  # "./../Datasets/df_8molecules"
+    save_folder = './../Datasets/double-walled_nanotube'   #'./../Datasets/aspirin'  # "./../Datasets/df_8molecules"
     create_dataset(files, grid_size=Dataset.GRID_SIZE, save_folder=save_folder, n_samples_per=50000)
