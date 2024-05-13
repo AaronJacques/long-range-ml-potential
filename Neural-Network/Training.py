@@ -4,6 +4,7 @@ import time
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import losses
+from tqdm import tqdm
 
 from Constants import Dataset, Hyperparameters, Logging, Model
 from Dataset import create_tf_dataset, create_tf_dataset_force_only
@@ -36,7 +37,8 @@ def log_training_progress(
         val_loss=None, val_energy_loss=None, val_force_loss=None,
         directory="logs"
 ):
-    # write the training progress to the log file such that it can be easily read by NumPy
+    print("Saving training progress")
+    # write the training progress to the log file
     with open(os.path.join(directory, "training_log.csv"), "a") as file:
         # if the file is empty, write the header
         if val_loss is not None:
@@ -47,6 +49,8 @@ def log_training_progress(
             if file.tell() == 0:
                 file.write(f"{Logging.epoch_key},{Logging.train_total_loss_key},{Logging.train_energy_loss_key},{Logging.train_force_loss_key},{Logging.p_energy_key},{Logging.p_force_key}\n")
             file.write(f"{epoch},{train_loss},{train_energy_loss},{train_force_loss},{p_energy},{p_force}\n")
+
+    print("Training progress saved")
 
 
 # Training function
@@ -139,8 +143,8 @@ def start_training():
     # create the training directory
     checkpoint_dir = create_training_directory()
 
-    train_ds = create_tf_dataset(os.path.join(Dataset.FOLDER, Dataset.TRAIN_NAME))
-    val_ds = None # create_tf_dataset(os.path.join(Dataset.FOLDER, Dataset.VAL_NAME))
+    train_ds, train_size = create_tf_dataset(os.path.join(Dataset.FOLDER, Dataset.TRAIN_NAME))
+    val_ds, val_size = create_tf_dataset(os.path.join(Dataset.FOLDER, Dataset.VAL_NAME))
     model = get_model()
 
     # Optimizer with learning rate scheduler
@@ -160,7 +164,6 @@ def start_training():
     step = 0
 
     # Training loop
-    dataset_size = None
     for epoch in range(Hyperparameters.EPOCHS):
         i = 0
         train_losses = []
@@ -207,13 +210,12 @@ def start_training():
 
             # Print mean loss every 1000 steps
             if i % 1000 == 0:
-                print(f"Epoch {epoch} - Training step {i}/{dataset_size if dataset_size else 'Unknown'}")
+                print(f"Epoch {epoch} - Training step {i}/{train_size if train_size else 'Unknown'}")
                 if not Model.predict_only_energy:
                     print(f"Total loss: {training_loss:.2f}")
                     print(f"Force loss: {force_loss:.2f} kcal mol^-1 Å^-1")
                 print(f"Energy loss: {total_energy_loss:.2f} kcal mol^-1", end="\n\n")
 
-        dataset_size = i
         epoch_train_loss = np.mean(train_losses)
         epoch_force_loss = np.mean(force_losses)
         epoch_energy_loss = np.mean(energy_losses)
@@ -223,11 +225,11 @@ def start_training():
         epoch_val_energy_loss = None
         epoch_val_force_loss = None
         if val_ds is not None:
-            print("Validation")
-            val_losses = []
-            val_energy_losses = []
-            val_force_losses = []
-            for element in val_ds:
+            print("Starting Validation")
+            val_losses = np.zeros(val_size, dtype=np.float32)
+            val_energy_losses = np.zeros(val_size, dtype=np.float32)
+            val_force_losses = np.zeros(val_size, dtype=np.float32)
+            for i, element in tqdm(enumerate(val_ds), total=val_size, desc="Validation", unit="batch"):
                 x, y = element
                 val_loss, val_energy_loss, val_force_loss = val_step(
                     inputs=x,
@@ -235,12 +237,13 @@ def start_training():
                     p_energy=tf.constant(p_energy, dtype=tf.float32),
                     p_force=tf.constant(p_force, dtype=tf.float32)
                 )
-                val_losses.append(val_loss)
-                val_energy_losses.append(val_energy_losses)
-                val_force_losses.append(val_force_loss)
+                val_losses[i] = val_loss.numpy()
+                val_energy_losses[i] = val_energy_loss.numpy()
+                val_force_losses[i] = val_force_loss.numpy()
             epoch_val_loss = np.mean(val_losses)
             epoch_val_energy_loss = np.mean(val_energy_losses)
             epoch_val_force_loss = np.mean(val_force_losses)
+            print("Validation finished", end="\n\n")
 
         # log the training progress
         log_training_progress(
@@ -271,7 +274,6 @@ def start_training():
         # Save the model after each epoch
         model.save(os.path.join(checkpoint_dir, f"model_epoch_{epoch}.h5"))
         print(f"Epoch {epoch} finished", end="\n\n")
-
 
 
 if __name__ == "__main__":

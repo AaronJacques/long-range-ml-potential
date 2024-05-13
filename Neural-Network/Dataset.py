@@ -70,33 +70,19 @@ class GridCell:
 
     def __get_main_group_number(self, atomic_number):
         # Main groups and their typical elements by atomic number
-        group_1 = {1, 3, 11, 19, 37, 55, 87}  # Hydrogen and Alkali metals
-        group_2 = {4, 12, 20, 38, 56, 88}  # Alkaline earth metals
-        # Transition metals by group
-        group_3 = {21, 39, 57, 89}
-        group_4 = {22, 40, 72, 104}
-        group_5 = {23, 41, 73, 105}
-        group_6 = {24, 42, 74, 106}
-        group_7 = {25, 43, 75, 107}
-        group_8 = {26, 44, 76, 108}
-        group_9 = {27, 45, 77, 109}
-        group_10 = {28, 46, 78, 110}
-        group_11 = {29, 47, 79, 111}
-        group_12 = {30, 48, 80, 112}
-        group_13 = {5, 13, 31, 49, 81, 113}  # Boron group
-        group_14 = {6, 14, 32, 50, 82, 114}  # Carbon group
-        group_15 = {7, 15, 33, 51, 83, 115}  # Nitrogen group
-        group_16 = {8, 16, 34, 52, 84, 116}  # Oxygen group
-        group_17 = {9, 17, 35, 53, 85, 117}  # Halogens
-        group_18 = {2, 10, 18, 36, 54, 86, 118}  # Noble gases
+        group_1 = {1, 3, 11, 19, 37, 55, 87}
+        group_2 = {4, 12, 20, 38, 56, 88}
+        group_3 = {5, 13, 31, 49, 81, 21, 39, 71}
+        group_4 = {6, 14, 32, 50, 82, 22, 40, 72}
+        group_5 = {7, 15, 33, 51, 83, 23, 41, 73}
+        group_6 = {8, 16, 34, 52, 84, 24, 42, 74}
+        group_7 = {9, 17, 35, 53, 85, 25, 43, 75}
+        group_8 = {2, 10, 18, 36, 54, 86,}
 
         groups = {
             1: group_1, 2: group_2,
             3: group_3, 4: group_4, 5: group_5, 6: group_6,
-            7: group_7, 8: group_8, 9: group_9, 10: group_10,
-            11: group_11, 12: group_12,
-            13: group_13, 14: group_14, 15: group_15,
-            16: group_16, 17: group_17, 18: group_18
+            7: group_7, 8: group_8
         }
 
         for group, elements in groups.items():
@@ -130,6 +116,84 @@ class GridCell:
     # only the first max_atom_elements are considered
     def get_atomic_features(self):
         return self.atomic_features
+
+
+# create grid with Fast Multipole Method
+# positions: list of positions of atoms
+# atomic_numbers: list of atomic numbers of atoms
+# min_grid_size: minimum grid size
+def create_grid(positions, atomic_numbers, min_grid_size):
+    # init arrays
+    local_matrix = []
+    long_range_matrix = []
+    local_atomic_numbers = []
+    long_range_atomic_features = []
+
+    # get the max distance in each dimension
+    max_values = np.max(positions, axis=0)
+    min_values = np.min(positions, axis=0)
+    max_length = np.max(max_values - min_values)
+
+    # init grid size
+    grid_size = max_length / 4
+
+    # loop over all grid sizes
+    while True:
+        if grid_size < min_grid_size:
+            break
+
+        # get the grid indices
+        grid_indices = np.floor((positions - min_values) / grid_size).astype(np.int32)
+        unique_indices = np.unique(grid_indices, axis=0)
+        # max index in each dimension
+        max_index = np.max(grid_indices, axis=0)
+
+        # loop over all atoms
+        for i, (position, atomic_number) in enumerate(zip(positions, atomic_numbers)):
+            # get the grid index of the atom
+            grid_index = grid_indices[i]
+
+            # filter out the cells which are direct neighbours
+            long_range_neighbours = unique_indices[
+                np.any(np.abs(unique_indices - grid_index) > 1, axis=1) & np.all(np.abs(unique_indices - grid_index) <= 1, axis=1)
+            ]
+
+            # TODO: filter out the cells that have been already added in the previous iteration
+
+            # for each neighbour find the atoms in the neighbour cell
+            cell_positions = []
+            cell_atomic_numbers = []
+            for neighbour in long_range_neighbours:
+                cell_positions.append([positions[j] for j in range(len(positions)) if np.all(grid_indices[j] == neighbour)])
+                cell_atomic_numbers.append([atomic_numbers[j] for j in range(len(atomic_numbers)) if np.all(grid_indices[j] == neighbour)])
+
+            # calculate the center of mass of the neighbour cell
+            center_of_mass = np.mean(cell_positions, axis=0)
+
+            # calculate the feature vector of the neighbour cell
+            features = np.zeros((len(cell_positions), Dataset.MAX_ATOM_ELEMENTS + 1))
+            # first entry is the atomic number of the current atom
+            features[:, 0] = atomic_number
+            for j, cell in enumerate(cell_atomic_numbers):
+                for an in cell:
+                    if an > Dataset.MAX_ATOM_ELEMENTS:
+                        continue
+                    features[j, an] += 1
+
+            # calculate the distance between the atom and the center of mass
+            distance_vector = position - center_of_mass
+
+            # append the distance vector to the long range matrix
+            long_range_matrix.append(distance_vector)
+            long_range_atomic_features.append(features)
+
+        # update the grid size
+        grid_size /= 2
+
+    # TODO: calculate the local distance matrix
+
+
+
 
 
 def create_grid(positions, atomic_numbers, grid_size):
@@ -198,6 +262,21 @@ def get_expanded_distance_vector_local(distance_vector, norm, s):
     return np.concatenate([np.array([s]), distance_vector * s / norm])
 
 
+def process_neighbour(neighbour, position, atomic_number, long_range_distance_matrix, current_atomic_features):
+    # check if the neighbour is empty
+    if len(neighbour.positions) == 0:
+        return
+
+    # calculate the distance between the two atoms
+    distance_vector = position - neighbour.get_center_of_mass()
+    # append the expanded distance vector to the list
+    long_range_distance_matrix.append(
+        get_expanded_distance_vector(distance_vector, np.linalg.norm(distance_vector, ord=2))
+    )
+    # add the atomic numbers to the list
+    current_atomic_features.append(np.concatenate((np.array([atomic_number]), neighbour.get_atomic_features())))
+
+
 # creating the distance matrix of a list of grid cells
 def create_matrices(grid_points):
     # create the distance matrix
@@ -214,18 +293,25 @@ def create_matrices(grid_points):
         for position, atomic_number in zip(grid_point.positions, grid_point.atomic_numbers):
             local_distance_matrix = []
             long_range_distance_matrix = []
-            # list of lists of the form [atom_number_1, atom_number_2
+            # list of lists of the form [atom_number_1, atom_number_2]
             # where atom_number_1 is the atomic number of the current atom and
             # atom_number_2 is the atomic number of the atom in the distance vector
             current_atomic_numbers = []
             current_atomic_features = []
-            # list of grid cells that are neighbours of the current grid cell
-            # if the distance to an atom in the neighbour is smaller than the cut-off it counts as a local neighbour
-            # and is then removed from the neighbour GridCell
-            current_neighbours = []
 
             for level, neighbours in enumerate(grid_point.neighbour_tree):
                 for neighbour in neighbours:
+                    # if not a neighbour => long range and process directly
+                    if level > Dataset.MAX_LOCAL_LEVEL + 1:
+                        process_neighbour(
+                            neighbour,
+                            position,
+                            atomic_number,
+                            long_range_distance_matrix,
+                            current_atomic_features
+                        )
+                        continue
+
                     # initialize new neighbour
                     updated_neighbour = GridCell(neighbour.grid_index, [], [], max_level=1)
 
@@ -253,21 +339,13 @@ def create_matrices(grid_points):
                     # if the level is <= MAX_LOCAL_LEVEL do not add it to the neighbours list because it is a
                     # local neighbour and is already in the local_distance_matrix
                     if level > Dataset.MAX_LOCAL_LEVEL:
-                        current_neighbours.append(updated_neighbour)
-
-            # for the neighbours only use center of mass
-            for neighbour in current_neighbours:
-                # check if the neighbour is empty
-                if len(neighbour.positions) == 0:
-                    continue
-                # calculate the distance between the two atoms
-                distance_vector = position - neighbour.get_center_of_mass()
-                # append the expanded distance vector to the list
-                long_range_distance_matrix.append(
-                    get_expanded_distance_vector(distance_vector, np.linalg.norm(distance_vector, ord=2))
-                )
-                # add the atomic numbers to the list
-                current_atomic_features.append(np.concatenate((np.array([atomic_number]), neighbour.get_atomic_features())))
+                        process_neighbour(
+                            updated_neighbour,
+                            position,
+                            atomic_number,
+                            long_range_distance_matrix,
+                            current_atomic_features
+                        )
 
             # append
             local_distance_matrices.append(np.array(local_distance_matrix))
@@ -283,19 +361,19 @@ def create_matrices(grid_points):
 
 
 def pad_df_entry(entry, n_max, expected_width):
-    # pad the entry with zeros to the maximum length
+    # Check if the entry is empty, and return a zeros array directly
     if len(entry) == 0:
         return np.zeros((1, n_max, expected_width))
 
-    padded = []
-    for x in entry:
-        if len(x) == 0:
-            padded.append(np.zeros((n_max, expected_width)))
-            continue
+    # Preallocate a zeros array with the correct shape
+    padded = np.zeros((len(entry), n_max, expected_width), dtype=np.float32)
 
-        padded.append(np.pad(x, ((0, n_max - len(x)), (0, 0)), mode="constant"))
+    # Fill the pre-allocated array where data exists
+    for i, x in enumerate(entry):
+        if len(x) > 0:
+            padded[i, :len(x), :] = x.astype(np.float32)
 
-    return np.array(padded)
+    return padded
 
 
 def create_dataset(paths, grid_size, save_folder, val_split=0.1, n_samples_per=None):
@@ -436,6 +514,7 @@ def create_tf_dataset_force_only(path):
 def create_tf_dataset(path):
     print(f"Creating dataset from {path}")
     df = pd.read_pickle(path, compression="gzip")
+    df_size = len(df.index)
 
     # get the shapes of the matrices (all matrices have the same shape)
     local_distance_matrix_shape = df[Keys.LOCAL_DISTANCE_MATRIX_KEY].iloc[0].shape[1:]
@@ -500,19 +579,21 @@ def create_tf_dataset(path):
     dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    return dataset
+    return dataset, df_size
 
 
 if __name__ == "__main__":
-    files = ['./../Datasets/md17_aspirin.npz',
-             './../Datasets/md17_benzene2017.npz',
-             './../Datasets/md17_ethanol.npz',
-             './../Datasets/md17_malonaldehyde.npz',
-             './../Datasets/md17_naphthalene.npz',
-             './../Datasets/md17_salicylic.npz',
-             './../Datasets/md17_toluene.npz',
-             './../Datasets/md17_uracil.npz']
-    files = [files[0]]  # asprin
+    fs = [
+        './../Datasets/md17_aspirin.npz',
+        './../Datasets/md17_benzene2017.npz',
+        './../Datasets/md17_ethanol.npz',
+        './../Datasets/md17_malonaldehyde.npz',
+        './../Datasets/md17_naphthalene.npz',
+        './../Datasets/md17_salicylic.npz',
+        './../Datasets/md17_toluene.npz',
+        './../Datasets/md17_uracil.npz'
+    ]
+    # files = ['./../Datasets/md17_aspirin.npz']  # asprin
     files = ['./../Datasets/md22_double-walled_nanotube.npz']
 
     save_folder = './../Datasets/double-walled_nanotube'   #'./../Datasets/aspirin'  # "./../Datasets/df_8molecules"
