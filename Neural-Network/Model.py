@@ -18,8 +18,7 @@ def embedding(local_matrix, atomic_numbers):
     # create embedding for the matrix with multiple Dense layers
     for dim in ModelConstants.embedding_dims:
         matrix = Dense(dim, activation='relu')(matrix)
-
-    # TODO: add a Dropout layer here
+        matrix = Dropout(0.2)(matrix)
 
     return matrix
 
@@ -60,8 +59,8 @@ def res_embedding_model(matrix, features, n_max):
         r = dense_res_block(r, dim, activation=ModelConstants.activation)
 
     # reshape the output to the correct shape
-    r = Dense(n_max * ModelConstants.embedding_dims[-1], activation=ModelConstants.activation)(r)
-    r = Reshape((n_max, ModelConstants.embedding_dims[-1]))(r)
+    r = Dense(n_max * ModelConstants.M1, activation=ModelConstants.activation)(r)
+    r = Reshape((n_max, ModelConstants.M1))(r)
 
     return r
 
@@ -85,9 +84,12 @@ def res_o_shaped_model(feature_matrix, return_shape):
 
 
 def res_model_small(feature_matrix, return_shape):
-    r = Dense(512, activation=ModelConstants.activation)(feature_matrix)
-    r = dense_res_block(r, 512, activation=ModelConstants.activation)
-    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = Dense(256, activation=ModelConstants.activation)(feature_matrix)
+    r = Dropout(0.2)(r)
+    r = dense_res_block(r, 256, activation=ModelConstants.activation)
+    r = dense_res_block(r, 256, activation=ModelConstants.activation)
+    r = dense_res_block(r, 128, activation=ModelConstants.activation)
+    r = dense_res_block(r, 128, activation=ModelConstants.activation)
     return Dense(return_shape, activation='linear')(r)
 
 
@@ -116,7 +118,8 @@ def get_model():
 
     # concatenate and flatten the feature matrices
     concatenated_feature_matrix = Concatenate(axis=-1)([local_feature_matrix, long_range_feature_matrix])
-    flattened_feature_matrix = Flatten()(concatenated_feature_matrix)
+    reduced_feature_matrix = Dense(ModelConstants.M2, activation=ModelConstants.activation)(concatenated_feature_matrix)
+    flattened_feature_matrix = Flatten()(reduced_feature_matrix)
 
     if ModelConstants.small_model:
         output = res_model_small(flattened_feature_matrix, return_shape=1 if ModelConstants.predict_only_energy else 4)

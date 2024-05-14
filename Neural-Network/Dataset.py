@@ -122,7 +122,7 @@ class GridCell:
 # positions: list of positions of atoms
 # atomic_numbers: list of atomic numbers of atoms
 # min_grid_size: minimum grid size
-def create_grid(positions, atomic_numbers, min_grid_size):
+def create_grid_multipole(positions, atomic_numbers, min_grid_size):
     # init arrays
     local_matrix = []
     long_range_matrix = []
@@ -191,9 +191,6 @@ def create_grid(positions, atomic_numbers, min_grid_size):
         grid_size /= 2
 
     # TODO: calculate the local distance matrix
-
-
-
 
 
 def create_grid(positions, atomic_numbers, grid_size):
@@ -408,7 +405,7 @@ def create_dataset(paths, grid_size, save_folder, val_split=0.1, n_samples_per=N
 
     print("Creating grids...")
     # create grid for each sample
-    df[Keys.GRID_KEY] = df.apply(lambda row: create_grid(row['positions'], row['atomic_numbers'], grid_size), axis=1)
+    df[Keys.GRID_KEY] = df.apply(lambda row: create_grid(row['positions'], row['atomic_numbers'], grid_size), axis=1, )
     print("Created grids")
 
     print("Creating matrices...")
@@ -416,8 +413,8 @@ def create_dataset(paths, grid_size, save_folder, val_split=0.1, n_samples_per=N
     df[keys] = df[Keys.GRID_KEY].apply(
         lambda x: pd.Series(create_matrices(x), index=keys)
     )
-    # drop the grid column
-    df = df.drop(Keys.GRID_KEY, axis=1)
+    # Drop the positions, atomic_numbers and grids columns
+    df.drop(['positions', 'atomic_numbers', Keys.GRID_KEY], axis=1, inplace=True)
     print("Created matrices")
 
     print("Padding matrices...")

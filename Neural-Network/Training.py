@@ -38,6 +38,7 @@ def log_training_progress(
         directory="logs"
 ):
     print("Saving training progress")
+
     # write the training progress to the log file
     with open(os.path.join(directory, "training_log.csv"), "a") as file:
         # if the file is empty, write the header
@@ -50,7 +51,7 @@ def log_training_progress(
                 file.write(f"{Logging.epoch_key},{Logging.train_total_loss_key},{Logging.train_energy_loss_key},{Logging.train_force_loss_key},{Logging.p_energy_key},{Logging.p_force_key}\n")
             file.write(f"{epoch},{train_loss},{train_energy_loss},{train_force_loss},{p_energy},{p_force}\n")
 
-    print("Training progress saved")
+    print("Training progress saved\n\n")
 
 
 # Training function
@@ -112,7 +113,6 @@ def start_training():
 
         return total_energy_loss
 
-
     @tf.function
     def val_step(inputs, outputs, p_energy, p_force):
         forces, total_energy = outputs
@@ -140,6 +140,19 @@ def start_training():
 
         return total_loss, total_energy_loss, force_loss
 
+    @tf.function
+    def val_step_energy_only(inputs, outputs):
+        # Make predictions
+        prediction = model([inputs[0], inputs[1], inputs[2], inputs[3]], training=False)
+
+        # Total energy is the sum of atomic energies
+        total_energy_pred = tf.math.reduce_sum(prediction)
+
+        # Calculate energy loss
+        total_energy_loss = losses.MSE(outputs, total_energy_pred)
+
+        return total_energy_loss
+
     # create the training directory
     checkpoint_dir = create_training_directory()
 
@@ -155,6 +168,9 @@ def start_training():
         staircase=True
     )
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_scheduler)
+
+    model.compile(optimizer=optimizer, loss=losses.MSE)
+    model.summary()
 
     # weightings for the loss function
     p_energy = Hyperparameters.p_energy_start
@@ -231,15 +247,21 @@ def start_training():
             val_force_losses = np.zeros(val_size, dtype=np.float32)
             for i, element in tqdm(enumerate(val_ds), total=val_size, desc="Validation", unit="batch"):
                 x, y = element
-                val_loss, val_energy_loss, val_force_loss = val_step(
-                    inputs=x,
-                    outputs=y,
-                    p_energy=tf.constant(p_energy, dtype=tf.float32),
-                    p_force=tf.constant(p_force, dtype=tf.float32)
-                )
-                val_losses[i] = val_loss.numpy()
+                if Model.predict_only_energy:
+                    val_energy_loss = val_step_energy_only(
+                        inputs=x,
+                        outputs=y
+                    )
+                else:
+                    val_loss, val_energy_loss, val_force_loss = val_step(
+                        inputs=x,
+                        outputs=y,
+                        p_energy=tf.constant(p_energy, dtype=tf.float32),
+                        p_force=tf.constant(p_force, dtype=tf.float32)
+                    )
+                val_losses[i] = val_loss.numpy() if not Model.predict_only_energy else np.nan
                 val_energy_losses[i] = val_energy_loss.numpy()
-                val_force_losses[i] = val_force_loss.numpy()
+                val_force_losses[i] = val_force_loss.numpy() if not Model.predict_only_energy else np.nan
             epoch_val_loss = np.mean(val_losses)
             epoch_val_energy_loss = np.mean(val_energy_losses)
             epoch_val_force_loss = np.mean(val_force_losses)
@@ -259,17 +281,20 @@ def start_training():
             directory=checkpoint_dir
         )
 
-        # print training progress (one number after the comma)
+        # print training progress
         if not Model.predict_only_energy:
             print(f"Epoch {epoch} - p_energy: {p_energy}")
             print(f"Epoch {epoch} - p_force: {p_force}")
             print(f"Epoch {epoch} - Training loss: {epoch_train_loss:.2f}")
             print(f"Epoch {epoch} - Force loss: {epoch_force_loss:.2f} kcal mol^-1 Å^-1")
         print(f"Epoch {epoch} - Energy loss: {epoch_energy_loss:.2f} kcal mol^-1")
+
+        # print validation progress
         if epoch_val_loss is not None:
-            print(f"Epoch {epoch} - Validation loss: {epoch_val_loss:.2f}")
+            if not Model.predict_only_energy:
+                print(f"Epoch {epoch} - Validation loss: {epoch_val_loss:.2f}")
+                print(f"Epoch {epoch} - Validation force loss: {epoch_val_force_loss:.2f} kcal mol^-1 Å^-1")
             print(f"Epoch {epoch} - Validation energy loss: {epoch_val_energy_loss:.2f} kcal mol^-1")
-            print(f"Epoch {epoch} - Validation force loss: {epoch_val_force_loss:.2f} kcal mol^-1 Å^-1")
 
         # Save the model after each epoch
         model.save(os.path.join(checkpoint_dir, f"model_epoch_{epoch}.h5"))
