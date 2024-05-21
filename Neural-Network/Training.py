@@ -6,7 +6,7 @@ import tensorflow as tf
 from tensorflow.keras import losses
 from tqdm import tqdm
 
-from Constants import Dataset, Hyperparameters, Logging, Model
+from Constants import Dataset, Logging, Model
 from Dataset import create_tf_dataset, create_tf_dataset_force_only
 from Model import get_model
 
@@ -16,12 +16,12 @@ def get_weighting_from_step(step, w_limit, w_start, decay_steps, decay_rate):
     return w_limit * (1 - f) + w_start * f
 
 
-def create_training_directory():
+def create_training_directory(hyperparameters):
     current_time = str(
         # time.strftime("%d-%m-%Y-%H-%M-%S", time.localtime(time.time()))
         time.strftime("%H-%M-%S", time.localtime(time.time()))
     )
-    folder_name = f"Model-{Dataset.FOLDER_NAME}-DS-{Hyperparameters.initial_learning_rate}-lr-{Hyperparameters.decay_steps}-decay-steps" + current_time
+    folder_name = f"Model-{Dataset.FOLDER_NAME}-DS-{hyperparameters.initial_learning_rate}-lr-{hyperparameters.decay_steps}-decay-steps" + current_time
     checkpoint_dir = os.path.join("..", "Checkpoints", folder_name)
 
     if not os.path.exists(checkpoint_dir):
@@ -55,7 +55,7 @@ def log_training_progress(
 
 
 # Training function
-def start_training():
+def start_training(hyperparameters):
     @tf.function
     def train_step(inputs, outputs, p_energy, p_force):
         forces, total_energy = outputs
@@ -154,17 +154,17 @@ def start_training():
         return total_energy_loss
 
     # create the training directory
-    checkpoint_dir = create_training_directory()
+    checkpoint_dir = create_training_directory(hyperparameters)
 
     train_ds, train_size = create_tf_dataset(os.path.join(Dataset.FOLDER, Dataset.TRAIN_NAME))
     val_ds, val_size = create_tf_dataset(os.path.join(Dataset.FOLDER, Dataset.VAL_NAME))
-    model = get_model()
+    model = get_model(hyperparameters)
 
     # Optimizer with learning rate scheduler
     lr_scheduler = tf.keras.optimizers.schedules.ExponentialDecay(
-        initial_learning_rate=Hyperparameters.initial_learning_rate,
-        decay_steps=Hyperparameters.lr_decay_steps,
-        decay_rate=Hyperparameters.decay_rate,
+        initial_learning_rate=hyperparameters.initial_learning_rate,
+        decay_steps=hyperparameters.lr_decay_steps,
+        decay_rate=hyperparameters.decay_rate,
         staircase=True
     )
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_scheduler)
@@ -173,14 +173,14 @@ def start_training():
     model.summary()
 
     # weightings for the loss function
-    p_energy = Hyperparameters.p_energy_start
-    p_force = Hyperparameters.p_force_start
+    p_energy = hyperparameters.p_energy_start
+    p_force = hyperparameters.p_force_start
 
     # counter for the steps
     step = 0
 
     # Training loop
-    for epoch in range(Hyperparameters.EPOCHS):
+    for epoch in range(hyperparameters.epochs):
         i = 0
         train_losses = []
         energy_losses = []
@@ -211,17 +211,17 @@ def start_training():
             if not Model.predict_only_energy:
                 p_energy = get_weighting_from_step(
                     step,
-                    Hyperparameters.p_energy_limit,
-                    Hyperparameters.p_energy_start,
-                    Hyperparameters.decay_steps,
-                    Hyperparameters.decay_rate
+                    hyperparameters.p_energy_limit,
+                    hyperparameters.p_energy_start,
+                    hyperparameters.decay_steps,
+                    hyperparameters.decay_rate
                 )
                 p_force = get_weighting_from_step(
                     step,
-                    Hyperparameters.p_force_limit,
-                    Hyperparameters.p_force_start,
-                    Hyperparameters.decay_steps,
-                    Hyperparameters.decay_rate
+                    hyperparameters.p_force_limit,
+                    hyperparameters.p_force_start,
+                    hyperparameters.decay_steps,
+                    hyperparameters.decay_rate
                 )
 
             # Print mean loss every 1000 steps
@@ -300,7 +300,46 @@ def start_training():
         model.save(os.path.join(checkpoint_dir, f"model_epoch_{epoch}.h5"))
         print(f"Epoch {epoch} finished", end="\n\n")
 
+    # evaluate the model
+    final_loss = None
+    if val_ds is not None:
+        print("Starting Evaluation")
+        val_losses = np.zeros(val_size, dtype=np.float32)
+        val_energy_losses = np.zeros(val_size, dtype=np.float32)
+        val_force_losses = np.zeros(val_size, dtype=np.float32)
+        for i, element in tqdm(enumerate(val_ds), total=val_size, desc="Evaluation", unit="batch"):
+            x, y = element
+            if Model.predict_only_energy:
+                val_energy_loss = val_step_energy_only(
+                    inputs=x,
+                    outputs=y
+                )
+            else:
+                val_loss, val_energy_loss, val_force_loss = val_step(
+                    inputs=x,
+                    outputs=y,
+                    p_energy=tf.constant(p_energy, dtype=tf.float32),
+                    p_force=tf.constant(p_force, dtype=tf.float32)
+                )
+            val_losses[i] = val_loss.numpy() if not Model.predict_only_energy else np.nan
+            val_energy_losses[i] = val_energy_loss.numpy()
+            val_force_losses[i] = val_force_loss.numpy() if not Model.predict_only_energy else np.nan
+        epoch_val_loss = np.mean(val_losses)
+        epoch_val_energy_loss = np.mean(val_energy_losses)
+        epoch_val_force_loss = np.mean(val_force_losses)
+        # since we are optimizing for energy, we only care about the energy loss
+        final_loss = epoch_val_energy_loss
+        print("Evaluation finished", end="\n\n")
+        print(f"Final Evaluation loss: {epoch_val_loss:.2f}")
+        print(f"Final Evaluation force loss: {epoch_val_force_loss:.2f} kcal mol^-1 Å^-1")
+        print(f"Final Evaluation energy loss: {epoch_val_energy_loss:.2f} kcal mol^-1")
+    print("Training finished")
+
+    return final_loss
+
+
 
 if __name__ == "__main__":
     print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-    start_training()
+    from Constants import Hyperparameters
+    start_training(Hyperparameters)

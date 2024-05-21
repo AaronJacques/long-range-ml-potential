@@ -27,7 +27,7 @@ class Dataset:
     TRAIN_NAME = "train.pkl.gzip"
     VAL_NAME = "val.pkl.gzip"
     MAX_ATOM_ELEMENTS = 100
-    GRID_SIZE = 4  # in Angstrom
+    GRID_SIZE = 2  # in Angstrom
     MAX_LOCAL_LEVEL = 1  # in units of GRID_SIZE
     # CUT_OFF is calculated such that all atoms in grid cells with level <= MAX_LOCAL_LEVEL are included
     CUT_OFF = (MAX_LOCAL_LEVEL + 1 + 0.5**0.5) * GRID_SIZE  # in Angstrom
@@ -46,15 +46,14 @@ class Hyperparameters:
     lr_decay_steps = 9e+4  # every 2 epochs  # TODO: Check if different decay steps for lr are better
     decay_steps = 15e+3  # 3 times per epoch
     decay_rate = 0.97  # paper: 0.96
-    EPOCHS = 1000
-    # paper: start with 0.02 and ends with 1.0
-    # currently best: 0.1 and 1.0
+    epochs = 1000
     p_energy_start = 0.02
     p_energy_limit = 1.0
-    # paper: start with 1000 and ends with 1.0
-    # currently best: 100 and 1.0
-    p_force_start = 1000
-    p_force_limit = 1.0
+    p_force_start = 100
+    p_force_limit = 0.5
+    M1 = 100  # paper uses 100
+    M2 = 8  # paper uses 4
+    embedding_dims = [64, 128, 128, 256]
 
 
 @dataclass(frozen=True)
@@ -67,10 +66,7 @@ class Model:
     input_shape_atomic_numbers = (n_max_local, 2)
     input_shape_long_range_matrix = (n_max_long_range, 4)
     input_shape_long_range_atomic_features = (n_max_long_range, Dataset.MAX_ATOM_ELEMENTS + 1)
-    M1 = 100  # paper uses 100
-    M2 = 8  # paper uses 4
-    embedding_dims = [64, 128]
-    predict_only_energy = True
+    predict_only_energy = False
 
 
 @dataclass(frozen=True)
