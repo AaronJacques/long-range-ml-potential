@@ -508,6 +508,126 @@ def create_tf_dataset_force_only(path):
     return dataset
 
 
+def get_generator(df):
+    if Model.predict_only_energy:
+        if Model.use_long_range:
+            def generator():
+                for _, row in df.iterrows():
+                    yield (
+                        row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
+                        row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
+                        row[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY],
+                        row[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY],
+                        np.array([row[Keys.ENERGY_KEY]])
+                    )
+        else:
+            def generator():
+                for _, row in df.iterrows():
+                    yield (
+                        row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
+                        row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
+                        np.array([row[Keys.ENERGY_KEY]])
+                    )
+    else:
+        if Model.use_long_range:
+            def generator():
+                for _, row in df.iterrows():
+                    yield (
+                        row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
+                        row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
+                        row[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY],
+                        row[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY],
+                        row[Keys.FORCE_KEY],
+                        np.array([row[Keys.ENERGY_KEY]])
+                    )
+        else:
+            def generator():
+                for _, row in df.iterrows():
+                    yield (
+                        row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
+                        row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
+                        row[Keys.FORCE_KEY],
+                        np.array([row[Keys.ENERGY_KEY]])
+                    )
+
+    return generator
+
+
+def get_tf_dataset_from_generator(
+        generator,
+        local_distance_matrix_shape,
+        local_atomic_numbers_shape,
+        long_range_distance_matrix_shape,
+        long_range_atomic_features_shape
+):
+
+    if Model.predict_only_energy:
+        if Model.use_long_range:
+            dataset = tf.data.Dataset.from_generator(generator, output_signature=(
+                tf.TensorSpec(shape=(None, *local_distance_matrix_shape), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, *local_atomic_numbers_shape), dtype=tf.int32),
+                tf.TensorSpec(shape=(None, *long_range_distance_matrix_shape), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, *long_range_atomic_features_shape), dtype=tf.float32),
+                tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
+            ))
+        else:
+            dataset = tf.data.Dataset.from_generator(generator, output_signature=(
+                tf.TensorSpec(shape=(None, *local_distance_matrix_shape), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, *local_atomic_numbers_shape), dtype=tf.int32),
+                tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
+            ))
+    else:
+        if Model.use_long_range:
+            dataset = tf.data.Dataset.from_generator(generator, output_signature=(
+                tf.TensorSpec(shape=(None, *local_distance_matrix_shape,), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, *local_atomic_numbers_shape,), dtype=tf.int32),
+                tf.TensorSpec(shape=(None, *long_range_distance_matrix_shape,), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, *long_range_atomic_features_shape,), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, 3,), dtype=tf.float32),  # (fx, fy, fz)
+                tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
+            ))
+        else:
+            dataset = tf.data.Dataset.from_generator(generator, output_signature=(
+                tf.TensorSpec(shape=(None, *local_distance_matrix_shape,), dtype=tf.float32),
+                tf.TensorSpec(shape=(None, *local_atomic_numbers_shape,), dtype=tf.int32),
+                tf.TensorSpec(shape=(None, 3,), dtype=tf.float32),  # (fx, fy, fz)
+                tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
+            ))
+
+    # energies and forces are the labels and the rest is the input
+    if Model.predict_only_energy:
+        if Model.use_long_range:
+            dataset = dataset.map(
+                lambda x1, x2, x3, x4, y: ((x1, x2, x3, x4), y),
+                num_parallel_calls=tf.data.experimental.AUTOTUNE
+            )
+        else:
+            dataset = dataset.map(
+                lambda x1, x2, y: ((x1, x2), y),
+                num_parallel_calls=tf.data.experimental.AUTOTUNE
+            )
+    else:
+        if Model.use_long_range:
+            dataset = dataset.map(
+                lambda x1, x2, x3, x4, y1, y2: ((x1, x2, x3, x4), (y1, y2)),
+                num_parallel_calls=tf.data.experimental.AUTOTUNE
+            )
+        else:
+            dataset = dataset.map(
+                lambda x1, x2, y1, y2: ((x1, x2), (y1, y2)),
+                num_parallel_calls=tf.data.experimental.AUTOTUNE
+            )
+
+    # cache the dataset
+    # dataset = dataset.cache()
+
+    # Shuffle and prefetch
+    dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+
+    return dataset
+
+
 def create_tf_dataset(path):
     print(f"Creating dataset from {path}")
     df = pd.read_pickle(path, compression="gzip")
@@ -519,62 +639,14 @@ def create_tf_dataset(path):
     long_range_distance_matrix_shape = df[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY].iloc[0].shape[1:]
     long_range_atomic_features_shape = df[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY].iloc[0].shape[1:]
 
-    def generator():
-        for _, row in df.iterrows():
-            if Model.predict_only_energy:
-                yield (
-                    row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
-                    row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
-                    row[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY],
-                    row[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY],
-                    np.array([row[Keys.ENERGY_KEY]])
-                )
-            else:
-                yield (
-                    row[Keys.LOCAL_DISTANCE_MATRIX_KEY],
-                    row[Keys.LOCAL_ATOMIC_NUMBERS_KEY],
-                    row[Keys.LONG_RANGE_DISTANCE_MATRIX_KEY],
-                    row[Keys.LONG_RANGE_ATOMIC_FEATURES_KEY],
-                    row[Keys.FORCE_KEY],
-                    np.array([row[Keys.ENERGY_KEY]])
-                )
-
-    if Model.predict_only_energy:
-        dataset = tf.data.Dataset.from_generator(generator, output_signature=(
-            tf.TensorSpec(shape=(None, *local_distance_matrix_shape), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, *local_atomic_numbers_shape), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, *long_range_distance_matrix_shape), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, *long_range_atomic_features_shape), dtype=tf.float32),
-            tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
-        ))
-    else:
-        dataset = tf.data.Dataset.from_generator(generator, output_signature=(
-            tf.TensorSpec(shape=(None, *local_distance_matrix_shape,), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, *local_atomic_numbers_shape,), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, *long_range_distance_matrix_shape,), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, *long_range_atomic_features_shape,), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, 3,), dtype=tf.float32),  # (fx, fy, fz)
-            tf.TensorSpec(shape=(1,), dtype=tf.float32)  # (energy,)
-        ))
-
-    # energies and forces are the labels and the rest is the input
-    if Model.predict_only_energy:
-        dataset = dataset.map(
-            lambda x1, x2, x3, x4, y: ((x1, x2, x3, x4), y),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE
-        )
-    else:
-        dataset = dataset.map(
-            lambda x1, x2, x3, x4, y1, y2: ((x1, x2, x3, x4), (y1, y2)),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE
-        )
-
-    # cache the dataset
-    dataset = dataset.cache()
-
-    # Shuffle and prefetch
-    dataset = dataset.shuffle(buffer_size=Dataset.SHUFFLE_BUFFER_SIZE)
-    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    generator = get_generator(df)
+    dataset = get_tf_dataset_from_generator(
+        generator,
+        local_distance_matrix_shape,
+        local_atomic_numbers_shape,
+        long_range_distance_matrix_shape,
+        long_range_atomic_features_shape
+    )
 
     return dataset, df_size
 
@@ -591,7 +663,8 @@ if __name__ == "__main__":
         './../Datasets/md17_uracil.npz'
     ]
     # files = ['./../Datasets/md17_aspirin.npz']  # asprin
-    files = ['./../Datasets/md22_double-walled_nanotube.npz']
+    # files = ['./../Datasets/md22_double-walled_nanotube.npz']
+    files = ['./../Datasets/md22_buckyball-catcher.npz']
 
-    save_folder = './../Datasets/double-walled_nanotube'   #'./../Datasets/aspirin'  # "./../Datasets/df_8molecules"
+    save_folder = './../Datasets/buckyball-catcher'   # './../Datasets/double-walled_nanotube './../Datasets/aspirin'  # "./../Datasets/df_8molecules"
     create_dataset(files, grid_size=Dataset.GRID_SIZE, save_folder=save_folder, n_samples_per=50000)

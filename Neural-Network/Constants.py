@@ -28,7 +28,7 @@ class Dataset:
     VAL_NAME = "val.pkl.gzip"
     MAX_ATOM_ELEMENTS = 100
     GRID_SIZE = 2  # in Angstrom
-    MAX_LOCAL_LEVEL = 1  # in units of GRID_SIZE
+    MAX_LOCAL_LEVEL = 2  # in units of GRID_SIZE
     # CUT_OFF is calculated such that all atoms in grid cells with level <= MAX_LOCAL_LEVEL are included
     CUT_OFF = (MAX_LOCAL_LEVEL + 1 + 0.5**0.5) * GRID_SIZE  # in Angstrom
     # has to be smaller than CUT_OFF
@@ -50,15 +50,16 @@ class Hyperparameters:
     p_energy_start = 0.02
     p_energy_limit = 1.0
     p_force_start = 100
-    p_force_limit = 0.5
-    M1 = 100  # paper uses 100
-    M2 = 8  # paper uses 4
+    p_force_limit = 0.66667
+    M1_local = 100
+    M2_local = 8
+    M1_long = 100
+    M2_long = 8
     embedding_dims = [64, 128, 128, 256]
 
 
 @dataclass(frozen=True)
 class Model:
-    small_model = True
     activation = "elu"  # "relu" or "elu"
     n_max_local = 20  # aspirin: 20 (grid size 1, max local level 6)
     n_max_long_range = 4  # aspirin: 4 (grid size 1, max local level 6)
@@ -67,6 +68,7 @@ class Model:
     input_shape_long_range_matrix = (n_max_long_range, 4)
     input_shape_long_range_atomic_features = (n_max_long_range, Dataset.MAX_ATOM_ELEMENTS + 1)
     predict_only_energy = False
+    use_long_range = False
 
 
 @dataclass(frozen=True)

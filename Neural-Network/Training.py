@@ -7,7 +7,7 @@ from tensorflow.keras import losses
 from tqdm import tqdm
 
 from Constants import Dataset, Logging, Model
-from Dataset import create_tf_dataset, create_tf_dataset_force_only
+from Dataset import create_tf_dataset
 from Model import get_model
 
 
@@ -66,7 +66,9 @@ def start_training(hyperparameters):
         # Watch the model's trainable variables
         with tf.GradientTape() as tape:
             # Make predictions
-            prediction = model([inputs[0], inputs[1], inputs[2], inputs[3]])
+            prediction = model(
+                [inputs[0], inputs[1], inputs[2], inputs[3]] if Model.use_long_range else [inputs[0], inputs[1]]
+            )
 
             # Separate energy and force predictions
             energy_pred = prediction[:, 0]
@@ -98,7 +100,9 @@ def start_training(hyperparameters):
         # Watch the model's trainable variables
         with tf.GradientTape() as tape:
             # Make predictions
-            prediction = model([inputs[0], inputs[1], inputs[2], inputs[3]])
+            prediction = model(
+                [inputs[0], inputs[1], inputs[2], inputs[3]] if Model.use_long_range else [inputs[0], inputs[1]]
+            )
 
             # Total energy is the sum of atomic energies
             total_energy_pred = tf.math.reduce_sum(prediction)
@@ -121,7 +125,10 @@ def start_training(hyperparameters):
         forces = tf.cast(forces, dtype=tf.float32)
 
         # Make predictions
-        prediction = model([inputs[0], inputs[1], inputs[2], inputs[3]], training=False)
+        prediction = model(
+            [inputs[0], inputs[1], inputs[2], inputs[3]] if Model.use_long_range else [inputs[0], inputs[1]],
+            training=False
+        )
 
         # Separate energy and force predictions
         energy_pred = prediction[:, 0]
@@ -143,7 +150,10 @@ def start_training(hyperparameters):
     @tf.function
     def val_step_energy_only(inputs, outputs):
         # Make predictions
-        prediction = model([inputs[0], inputs[1], inputs[2], inputs[3]], training=False)
+        prediction = model(
+            [inputs[0], inputs[1], inputs[2], inputs[3]] if Model.use_long_range else [inputs[0], inputs[1]],
+            training=False
+        )
 
         # Total energy is the sum of atomic energies
         total_energy_pred = tf.math.reduce_sum(prediction)
@@ -338,8 +348,8 @@ def start_training(hyperparameters):
     return final_loss
 
 
-
 if __name__ == "__main__":
-    print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+    gpu_devices = tf.config.list_physical_devices('GPU')
+    print("Num GPUs Available: ", len(gpu_devices))
     from Constants import Hyperparameters
     start_training(Hyperparameters)
