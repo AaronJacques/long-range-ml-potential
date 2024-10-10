@@ -21,7 +21,7 @@ def create_training_directory(hyperparameters):
         # time.strftime("%d-%m-%Y-%H-%M-%S", time.localtime(time.time()))
         time.strftime("%H-%M-%S", time.localtime(time.time()))
     )
-    folder_name = f"Model-{Dataset.FOLDER_NAME}-DS-{hyperparameters.initial_learning_rate}-lr-{hyperparameters.decay_steps}-decay-steps" + current_time
+    folder_name = f"Model-{Dataset.FOLDER_NAME}-DS-{hyperparameters.initial_learning_rate}-lr-{hyperparameters.lr_decay_steps}-decay-steps" + current_time
     checkpoint_dir = os.path.join("..", "Checkpoints", folder_name)
 
     if not os.path.exists(checkpoint_dir):

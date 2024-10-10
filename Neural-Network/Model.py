@@ -33,9 +33,11 @@ def res_embedding_model(matrix, features, n_max, hyperparameters, M1):
     first_column_local_matrix = Lambda(lambda x: x[:, :, 0])(matrix)
 
     # insert the first column of local matrix into the atomic numbers matrix as a new column at the beginning
-    first_column_local_matrix = tf.expand_dims(first_column_local_matrix, axis=-1)
-    matrix = Concatenate(axis=-1)([first_column_local_matrix, features])
-    matrix = Flatten()(matrix)
+    #first_column_local_matrix = tf.expand_dims(first_column_local_matrix, axis=-1)
+    #matrix = Concatenate(axis=-1)([first_column_local_matrix, features])
+    #matrix = Flatten()(matrix)
+    features = Flatten()(features)
+    matrix = Concatenate()([first_column_local_matrix, features])
 
     # create embedding for the matrix with multiple res blocks
     r = Dense(hyperparameters.embedding_dims[0], activation=ModelConstants.activation)(matrix)
@@ -50,10 +52,10 @@ def res_embedding_model(matrix, features, n_max, hyperparameters, M1):
 
 
 def res_model(feature_matrix, return_shape):
-    r = Dense(512, activation=ModelConstants.activation)(feature_matrix)
-    r = Dropout(0.3)(r)
-    r = dense_res_block(r, 512, activation=ModelConstants.activation)
-    r = dense_res_block(r, 512, activation=ModelConstants.activation)
+    r = Dense(128, activation=ModelConstants.activation)(feature_matrix)
+    r = Dropout(0.2)(r)
+    r = dense_res_block(r, 128, activation=ModelConstants.activation)
+    r = dense_res_block(r, 128, activation=ModelConstants.activation)
     return Dense(return_shape, activation='linear')(r)
 
 

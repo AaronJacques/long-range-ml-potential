@@ -274,6 +274,17 @@ def process_neighbour(neighbour, position, atomic_number, long_range_distance_ma
     current_atomic_features.append(np.concatenate((np.array([atomic_number]), neighbour.get_atomic_features())))
 
 
+def sort_matrix(matrix, features):
+    if len(matrix.shape) <= 1:
+        return matrix, features
+
+    sorted_indices = np.flip(matrix[:, 0].argsort())
+    matrix = matrix[sorted_indices]
+    features = features[sorted_indices]
+
+    return matrix, features
+
+
 # creating the distance matrix of a list of grid cells
 def create_matrices(grid_points):
     # create the distance matrix
@@ -344,11 +355,31 @@ def create_matrices(grid_points):
                             current_atomic_features
                         )
 
+            # sort the local_distance_matrix, current_atomic_numbers by the norm of the distance vector
+            # in descending order
+            local_distance_matrix = np.array(local_distance_matrix)
+            current_atomic_numbers = np.array(current_atomic_numbers)
+            if Dataset.sort_matrix:
+                local_distance_matrix, current_atomic_numbers = sort_matrix(
+                    local_distance_matrix,
+                    current_atomic_numbers
+                )
+
+            # sort the long_range_distance_matrix, current_atomic_features by the norm of the distance vector
+            # in descending order
+            long_range_distance_matrix = np.array(long_range_distance_matrix)
+            current_atomic_features = np.array(current_atomic_features)
+            if Dataset.sort_matrix:
+                long_range_distance_matrix, current_atomic_features = sort_matrix(
+                    long_range_distance_matrix,
+                    current_atomic_features
+                )
+
             # append
-            local_distance_matrices.append(np.array(local_distance_matrix))
-            local_atomic_numbers.append(np.array(current_atomic_numbers))
-            long_range_distance_matrices.append(np.array(long_range_distance_matrix))
-            long_range_atomic_features.append(np.array(current_atomic_features))
+            local_distance_matrices.append(local_distance_matrix)
+            local_atomic_numbers.append(current_atomic_numbers)
+            long_range_distance_matrices.append(long_range_distance_matrix)
+            long_range_atomic_features.append(current_atomic_features)
 
             # update the maximum length
             N_max_local = max(N_max_local, len(local_distance_matrix))
@@ -373,7 +404,7 @@ def pad_df_entry(entry, n_max, expected_width):
     return padded
 
 
-def create_dataset(paths, grid_size, save_folder, val_split=0.1, n_samples_per=None):
+def create_dataset(paths, grid_size, save_folder, val_split=0.1, test_split=0.1, n_samples_per=None):
     # create Pandas DataFrame
     df = None
     keys = [Keys.LOCAL_DISTANCE_MATRIX_KEY, Keys.LOCAL_ATOMIC_NUMBERS_KEY, Keys.LONG_RANGE_DISTANCE_MATRIX_KEY,
@@ -441,19 +472,21 @@ def create_dataset(paths, grid_size, save_folder, val_split=0.1, n_samples_per=N
 
     print("Splitting dataset...")
     # split the dataset
-    train_df = df.sample(frac=1 - val_split, random_state=42)
-    val_df = df.drop(train_df.index)
+    train_df = df.sample(frac=1 - (val_split + test_split), random_state=42)
+    val_df = df.drop(train_df.index).sample(frac=val_split / (val_split + test_split), random_state=42)
+    test_df = df.drop(train_df.index).drop(val_df.index)
     print("Split dataset")
 
     print("Saving DataFrame...")
     # save the dataframes in the save_folder
     # create the folder if it does not exist
-    save_folder = save_folder + f"_max_local_level_{Dataset.MAX_LOCAL_LEVEL}_grid_size_{grid_size}_n_samples_{n_samples_per}"
+    save_folder = save_folder + f"_max_local_level_{Dataset.MAX_LOCAL_LEVEL}_grid_size_{grid_size}"
     if os.path.exists(save_folder):
         raise FileExistsError(f"The folder {save_folder} already exists")
     os.makedirs(save_folder)
     train_df.to_pickle(os.path.join(save_folder, "train.pkl.gzip"), compression="gzip")
     val_df.to_pickle(os.path.join(save_folder, "val.pkl.gzip"), compression="gzip")
+    test_df.to_pickle(os.path.join(save_folder, "test.pkl.gzip"), compression="gzip")
     print("Saved DataFrame")
 
 
@@ -652,19 +685,7 @@ def create_tf_dataset(path):
 
 
 if __name__ == "__main__":
-    fs = [
-        './../Datasets/md17_aspirin.npz',
-        './../Datasets/md17_benzene2017.npz',
-        './../Datasets/md17_ethanol.npz',
-        './../Datasets/md17_malonaldehyde.npz',
-        './../Datasets/md17_naphthalene.npz',
-        './../Datasets/md17_salicylic.npz',
-        './../Datasets/md17_toluene.npz',
-        './../Datasets/md17_uracil.npz'
-    ]
-    # files = ['./../Datasets/md17_aspirin.npz']  # asprin
-    # files = ['./../Datasets/md22_double-walled_nanotube.npz']
-    files = ['./../Datasets/md22_buckyball-catcher.npz']
+    files = ['./../Datasets/md17_aspirin.npz']
 
-    save_folder = './../Datasets/buckyball-catcher'   # './../Datasets/double-walled_nanotube './../Datasets/aspirin'  # "./../Datasets/df_8molecules"
-    create_dataset(files, grid_size=Dataset.GRID_SIZE, save_folder=save_folder, n_samples_per=50000)
+    save_folder = './../Datasets/aspirin'
+    create_dataset(files, grid_size=Dataset.GRID_SIZE, save_folder=save_folder, n_samples_per=65_000)
