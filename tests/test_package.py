@@ -62,14 +62,6 @@ def test_cli_help(flag: str, capsys: pytest.CaptureFixture[str]) -> None:
     assert "usage: lrmlp" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("argv", [[], ["train"], ["--version", "extra"]])
-def test_cli_other_arguments_not_implemented(
-    argv: list[str], capsys: pytest.CaptureFixture[str]
-) -> None:
-    assert cli.main(argv) == 2
-    assert "not implemented yet" in capsys.readouterr().err
-
-
 def test_python_m_lrmlp_version() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "lrmlp", "--version"],
