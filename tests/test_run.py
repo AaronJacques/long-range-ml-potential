@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import stat
 from datetime import datetime
 from pathlib import Path
 
@@ -60,8 +61,17 @@ def test_new_run_dir_never_reuses_existing(tmp_path: Path) -> None:
 
 
 def test_new_run_dir_uses_current_time(tmp_path: Path) -> None:
+    before = datetime.now()
     path = new_run_dir(tmp_path, "x")
-    assert path.name.startswith(f"x-{datetime.now():%Y%m%d}-")
+    after = datetime.now()
+    assert any(path.name.startswith(f"x-{t:%Y%m%d}-") for t in (before, after))
+
+
+def test_write_json_uses_default_file_mode(tmp_path: Path) -> None:
+    plain = tmp_path / "plain.txt"
+    plain.write_text("x", encoding="utf-8")
+    path = write_json(tmp_path / "config.json", {"a": 1})
+    assert stat.S_IMODE(path.stat().st_mode) == stat.S_IMODE(plain.stat().st_mode)
 
 
 @pytest.mark.parametrize("name", ["", "a/b", "..", "a\\b"])

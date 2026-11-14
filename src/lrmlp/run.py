@@ -17,6 +17,7 @@ sorted keys. The module uses the standard library only.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -33,8 +34,19 @@ __all__ = ["RunDirectory", "new_run_dir", "read_json", "write_json"]
 _CHECKPOINT_RE = re.compile(r"^epoch_(\d{4,})\.weights\.h5$")
 
 
+@functools.cache
+def _default_file_mode() -> int:
+    """Mode of a newly created regular file (``0o666 & ~umask``), read once."""
+    umask = os.umask(0)
+    os.umask(umask)
+    return 0o666 & ~umask
+
+
 def write_json(path: str | Path, data: Any) -> Path:
     """Write ``data`` as UTF-8 JSON with sorted keys, atomically.
+
+    The file gets the same permissions as a plainly created file (``0o666 & ~umask``),
+    not the ``0o600`` of the temporary file.
 
     Parameters
     ----------
@@ -52,6 +64,7 @@ def write_json(path: str | Path, data: Any) -> Path:
     text = json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
+        os.fchmod(fd, _default_file_mode())
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
         os.replace(tmp, path)

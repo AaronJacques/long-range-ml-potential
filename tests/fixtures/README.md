@@ -44,6 +44,7 @@ Binding for all tasks. Always `MAX_ATOM_ELEMENTS = 100`, `use_charge_number = Tr
 | `data_descriptors_GA_edge.npz`, `data_descriptors_GB_edge.npz` | all edge cases, one frame each (`frame_names`) |
 | `data_descriptors_GC_stachyose.npz` | G-C, first 3 frames of `stachyose_like` |
 | `data_dataset_GA.npz`, `data_dataset_GB.npz` | `create_dataset([synthetic_small.npz], …)` → the three pickles (split 80/10/10, `random_state=42`) |
+| `data_split.npz` | the legacy split expressions (`Dataset.py:475-477`, `df.sample(frac=…, random_state=42)`) on a `RangeIndex(n)` DataFrame for n ∈ {7, 13, 60, 61, 63, 65, 101, 27272, 65000} and (val, test) ∈ {(0.1, 0.1), (0.05, 0.15)}: sizes and sha256 per split, index arrays for n ≤ 1000 |
 | `manifest_data.json` | legacy commit, versions, constants per config, per-case stats, sha256 of every file |
 
 Descriptor goldens hold the raw output of `create_grid` + `create_matrices` per
@@ -60,6 +61,30 @@ Legacy behaviour these files freeze (plan.md Appendix A):
 - A02: atoms beyond r_c in cells on level ≤ l_max are dropped.
 - A01: atoms inside r_c in cells on level ≥ l_max+2 enter only via the cell
   centroid.
+- Split sizes follow pandas `round(frac * n)` (round half to even), not `int()`:
+  for Stachyose (n = 27272) truncation would give 21817 instead of 21818 training
+  frames; n = 63 and 65 are x.5 cases (`data_split.npz`).
+
+### Model, training, schedule and evaluation goldens (`generate_model_golden.py`)
+
+Model M-1 on dataset G-B (all 60 frames of `synthetic_small`, split 0.1/0.1/42,
+`SHUFFLE_BUFFER_SIZE = 1`): embedding `[16, 32, 32]`, K1 = N_max = (10, 20),
+K2 = (4, 1), ELU, weights from `clear_session()` + `set_random_seed(1234)`.
+
+| File | Content |
+|---|---|
+| `model_lr_energy.npz`, `model_local_energy.npz`, `model_lr_forces.npz` | initial weights, the first 5 test molecules (padded inputs, `order`) and `model(x, training=False)` per molecule, `sum_energy`, `sum_all` (B05) |
+| `model_lr_energy_k1.npz` | forward only: M-1 with explicit K1 = (6, 24), i.e. M1_local < n_max_local and M1_long > n_max_long_range; also holds `M1_local`, `M1_long` |
+| `train_lr_energy.npz` | weights after one epoch of the unchanged `Training.start_training` (start = `model_lr_energy.npz`), epoch losses, `final_loss`, optimizer steps |
+| `schedules.json` | `ExponentialDecay(staircase=True)` and `Training.get_weighting_from_step` at fixed steps |
+| `eval_lr_energy.json` | test MAE of `evaluate.evaluate_model` on the `.h5` checkpoint of epoch 0, per-molecule absolute errors |
+| `manifest_model.json` | legacy commit, versions, all parameters, layer tables (construction order, legacy names, weight shapes), training log, sha256 of every file |
+
+Weights are stored as `{Class}__{k:03d}__{j}` (k = construction index within the
+layer class = Keras 2 name suffix, j = index in `layer.get_weights()`). Loaders:
+`load_model_golden`, `load_train_golden`, `load_schedules_golden`,
+`load_eval_golden`, `load_model_manifest`, `weights_by_class` in
+`tests/golden/fixtures.py`.
 
 `.npz` files are written by `fixtures.save_npz` instead of `np.savez_compressed`.
 The container is the same (zip of `.npy`, deflate, readable with `np.load`), but
@@ -78,10 +103,16 @@ tree.
 G=.overhaul/env/venv-py312-tf221/bin/python
 TF_USE_LEGACY_KERAS=1 PYTHONDONTWRITEBYTECODE=1 $G tests/golden/generate_data_golden.py          # write
 TF_USE_LEGACY_KERAS=1 PYTHONDONTWRITEBYTECODE=1 $G tests/golden/generate_data_golden.py --check  # OK: identical
+TF_USE_LEGACY_KERAS=1 PYTHONDONTWRITEBYTECODE=1 $G tests/golden/generate_model_golden.py          # write
+TF_USE_LEGACY_KERAS=1 PYTHONDONTWRITEBYTECODE=1 $G tests/golden/generate_model_golden.py --check  # OK: identical
 ```
+
+`generate_model_golden.py` reads `synthetic_small.npz`, so run the data
+generator first when regenerating both.
 
 `--check` regenerates into a temp dir and compares all arrays bit for bit, plus
 every manifest field except the environment `versions` and the file sha256
 (differences in those are only reported as notes). The manifest has no
-timestamp. `tests/test_golden_fixtures.py` checks the committed files without
-the legacy env.
+timestamp. `tests/test_golden_fixtures.py` and
+`tests/test_golden_model_fixtures.py` check the committed files without the
+legacy env.

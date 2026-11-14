@@ -207,6 +207,216 @@
       "n_max_long_range": 20
     }
   },
+  "splits": {
+    "code": [
+      "train_df = df.sample(frac=1 - (val_split + test_split), random_state=42)",
+      "val_df = df.drop(train_df.index).sample(frac=val_split / (val_split + test_split), random_state=42)",
+      "test_df = df.drop(train_df.index).drop(val_df.index)"
+    ],
+    "legacy_lines": "Dataset.py:475-477 (create_dataset)",
+    "index": "RangeIndex(n)",
+    "sha256": "sha256 of each index sequence as little-endian int64 bytes",
+    "cases": {
+      "n7_v10_t10": {
+        "n": 7,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          6,
+          0,
+          1
+        ],
+        "indices_stored": true
+      },
+      "n7_v05_t15": {
+        "n": 7,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          6,
+          0,
+          1
+        ],
+        "indices_stored": true
+      },
+      "n13_v10_t10": {
+        "n": 13,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          10,
+          2,
+          1
+        ],
+        "indices_stored": true
+      },
+      "n13_v05_t15": {
+        "n": 13,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          10,
+          1,
+          2
+        ],
+        "indices_stored": true
+      },
+      "n60_v10_t10": {
+        "n": 60,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          48,
+          6,
+          6
+        ],
+        "indices_stored": true
+      },
+      "n60_v05_t15": {
+        "n": 60,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          48,
+          3,
+          9
+        ],
+        "indices_stored": true
+      },
+      "n61_v10_t10": {
+        "n": 61,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          49,
+          6,
+          6
+        ],
+        "indices_stored": true
+      },
+      "n61_v05_t15": {
+        "n": 61,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          49,
+          3,
+          9
+        ],
+        "indices_stored": true
+      },
+      "n63_v10_t10": {
+        "n": 63,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          50,
+          6,
+          7
+        ],
+        "indices_stored": true
+      },
+      "n63_v05_t15": {
+        "n": 63,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          50,
+          3,
+          10
+        ],
+        "indices_stored": true
+      },
+      "n65_v10_t10": {
+        "n": 65,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          52,
+          6,
+          7
+        ],
+        "indices_stored": true
+      },
+      "n65_v05_t15": {
+        "n": 65,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          52,
+          3,
+          10
+        ],
+        "indices_stored": true
+      },
+      "n101_v10_t10": {
+        "n": 101,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          81,
+          10,
+          10
+        ],
+        "indices_stored": true
+      },
+      "n101_v05_t15": {
+        "n": 101,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          81,
+          5,
+          15
+        ],
+        "indices_stored": true
+      },
+      "n27272_v10_t10": {
+        "n": 27272,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          21818,
+          2727,
+          2727
+        ],
+        "indices_stored": false
+      },
+      "n27272_v05_t15": {
+        "n": 27272,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          21818,
+          1364,
+          4090
+        ],
+        "indices_stored": false
+      },
+      "n65000_v10_t10": {
+        "n": 65000,
+        "val_split": 0.1,
+        "test_split": 0.1,
+        "sizes": [
+          52000,
+          6500,
+          6500
+        ],
+        "indices_stored": false
+      },
+      "n65000_v05_t15": {
+        "n": 65000,
+        "val_split": 0.05,
+        "test_split": 0.15,
+        "sizes": [
+          52000,
+          3250,
+          9750
+        ],
+        "indices_stored": false
+      }
+    }
+  },
   "files": {
     "edge_cases.npz": {
       "sha256": "39239d88252c6339c6300732510d7b7c1c431b1e45ec81c66a8213c124984b0f",
@@ -243,6 +453,10 @@
     "golden/data_descriptors_GC_stachyose.npz": {
       "sha256": "999d7ea729260c61dd3e01bafb6ca4117cc838003c2d0e0d5e64f9baaf15caf1",
       "bytes": 591377
+    },
+    "golden/data_split.npz": {
+      "sha256": "269e537e37f115ba537d1dc703d9dc6d98b73e6f4c94cd3ae454c5bcaedfdbd5",
+      "bytes": 27609
     },
     "stachyose_like.npz": {
       "sha256": "9012bc627b22cff407447dbe2636bc2d7499af96f4097e31736bae6beef05643",

@@ -7,6 +7,7 @@ File layout (all under ``tests/fixtures/``)::
     edge_cases.npz                  <case>__R (N, 3), <case>__z (N,)
     golden/data_descriptors_<case>.npz
     golden/data_dataset_<GA|GB>.npz
+    golden/data_split.npz
     golden/manifest_data.json
 
 Descriptor golden (``load_descriptor_golden``), per frame ``f``, all in **legacy
@@ -18,7 +19,8 @@ row order** (cell traversal order, see ``f{f}__order``):
     f{f}__local_rows     (sum k, 4) float64  [s, s*x/r, s*y/r, s*z/r]
     f{f}__local_counts   (N,)      k per atom
     f{f}__local_numbers  (sum k, 2) [Z_i, Z_j]
-    f{f}__lr_rows        (sum m, 4) float64  [1/r, x/r^2, y/r^2, z/r^2]
+    f{f}__lr_rows        (sum m, 4) float64  [1/r, x/r, y/r, z/r]
+                                   (unit direction of r_i - r_m, Eq. 4.16-4.18; no s factor)
     f{f}__lr_counts      (N,)      m per atom
     f{f}__lr_features    (sum m, 101) [Z_i, counts of Z = 1..100]
     f{f}__n_max          (2,)      (N_max_local, N_max_long_range) of the frame
@@ -40,10 +42,23 @@ Dataset golden (``load_dataset_golden``), per split in ``train``/``val``/``test`
     <split>__order                  (A,)  legacy atom order per molecule, concatenated
 
 plus global ``n_max_local``, ``n_max_long_range``.
+
+Split golden (``load_split_golden``): the legacy split expressions of
+``create_dataset`` (``Dataset.py:475-477``, ``df.sample(frac=..., random_state=42)``)
+on a DataFrame with ``RangeIndex(n)``, per case ``n{n}_v{val%}_t{test%}``:
+
+    <case>__n            ()      number of frames
+    <case>__fractions    (2,)    (val_split, test_split)
+    <case>__sizes        (3,)    train, val, test sizes
+    <case>__sha256       (3,)    sha256 of each index sequence (little-endian int64)
+    <case>__<split>      (S,)    int32 indices in stored (sampled) order, only n <= 1000
+
+plus ``cases`` (all case names in generation order).
 """
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import re
@@ -80,6 +95,36 @@ def load_descriptor_golden(case: str) -> dict[str, np.ndarray]:
 def load_dataset_golden(name: str) -> dict[str, np.ndarray]:
     """Load ``data_dataset_<name>.npz`` (``name`` is ``"GA"`` or ``"GB"``)."""
     return _load(golden_dir() / f"data_dataset_{name}.npz")
+
+
+def load_split_golden() -> dict[str, dict[str, Any]]:
+    """Load ``data_split.npz`` as ``{case: {...}}``.
+
+    Each case holds ``n``, ``val_split``, ``test_split``, ``sizes`` (train, val,
+    test), ``sha256`` (one hex digest per split) and, for n <= 1000, the index
+    arrays ``train``, ``val`` and ``test`` (int64, stored order).
+    """
+    raw = _load(golden_dir() / "data_split.npz")
+    out: dict[str, dict[str, Any]] = {}
+    for name in raw["cases"].tolist():
+        p = f"{name}__"
+        case: dict[str, Any] = {
+            "n": int(raw[p + "n"]),
+            "val_split": float(raw[p + "fractions"][0]),
+            "test_split": float(raw[p + "fractions"][1]),
+            "sizes": [int(v) for v in raw[p + "sizes"]],
+            "sha256": [str(v) for v in raw[p + "sha256"]],
+        }
+        for split in ("train", "val", "test"):
+            if p + split in raw:
+                case[split] = raw[p + split].astype(np.int64)
+        out[name] = case
+    return out
+
+
+def split_index_sha256(index: Sequence[int] | np.ndarray) -> str:
+    """sha256 of an index sequence as little-endian int64 bytes (as in ``data_split.npz``)."""
+    return hashlib.sha256(np.asarray(index, dtype="<i8").tobytes()).hexdigest()
 
 
 def load_manifest() -> dict[str, Any]:
@@ -218,7 +263,9 @@ def legacy_expected_counts(
 
 # --- model, training, schedule and evaluation golden (T03, generate_model_golden.py) ---
 #
-# model_<variant>.npz (variant in lr_energy, local_energy, lr_forces), model M-1 on G-B:
+# model_<variant>.npz (variant in lr_energy, local_energy, lr_forces), model M-1 on G-B,
+# plus the forward-only lr_energy_k1 (M-1 with explicit K1 = (6, 24) != N_max = (10, 20);
+# only this file also holds the scalars M1_local, M1_long):
 #
 #     {Class}__{k:03d}__{j}       initial weights; k = construction index within the layer
 #                                 class (= Keras 2 name suffix), j = index in get_weights()

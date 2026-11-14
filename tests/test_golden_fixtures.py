@@ -254,3 +254,63 @@ def test_dataset_padding_matches_descriptor_golden(name: str, case: str) -> None
             for k, r in enumerate(rows):
                 assert np.array_equal(padded[k, : len(r)], r.astype(np.float32))
                 assert not padded[k, len(r) :].any()
+
+
+# --------------------------------------------------------------------------- split golden
+
+SPLIT = fx.load_split_golden()
+
+
+def _pandas_sizes(n: int, val_split: float, test_split: float) -> list[int]:
+    """Split sizes of the legacy expressions: ``df.sample(frac)`` takes ``round(frac * n)``."""
+    train = round(n * (1 - (val_split + test_split)))
+    val = round((n - train) * (val_split / (val_split + test_split)))
+    return [train, val, n - train - val]
+
+
+def test_split_golden_cases() -> None:
+    assert list(SPLIT) == list(MANIFEST["splits"]["cases"])
+    ns = {c["n"] for c in SPLIT.values()}
+    assert {7, 27272, 63, 65} <= ns
+    fractions = {(c["val_split"], c["test_split"]) for c in SPLIT.values()}
+    assert fractions == {(0.1, 0.1), (0.05, 0.15)}
+    for name, c in SPLIT.items():
+        assert MANIFEST["splits"]["cases"][name]["sizes"] == c["sizes"]
+        assert MANIFEST["splits"]["cases"][name]["indices_stored"] == ("train" in c)
+        assert ("train" in c) == (c["n"] <= 1000)
+
+
+@pytest.mark.parametrize("name", sorted(SPLIT))
+def test_split_golden_consistency(name: str) -> None:
+    c = SPLIT[name]
+    n = c["n"]
+    assert sum(c["sizes"]) == n
+    assert c["sizes"] == _pandas_sizes(n, c["val_split"], c["test_split"])
+    assert len(c["sha256"]) == 3 and all(len(h) == 64 for h in c["sha256"])
+    if "train" not in c:
+        return
+    parts = [c[s] for s in SPLITS]
+    assert [len(p) for p in parts] == c["sizes"]
+    assert np.array_equal(np.sort(np.concatenate(parts)), np.arange(n)), "partition of range(n)"
+    assert [fx.split_index_sha256(p) for p in parts] == c["sha256"]
+
+
+def test_split_golden_matches_dataset_golden() -> None:
+    """The legacy create_dataset split of 60 frames equals the n = 60 split case."""
+    c = SPLIT["n60_v10_t10"]
+    ds = fx.load_dataset_golden("GB")
+    for s in SPLITS:
+        assert np.array_equal(ds[f"{s}__index"], c[s]), s
+
+
+def test_split_golden_discriminates_rounding() -> None:
+    """The golden tells pandas rounding apart from int() truncation and half-up rounding."""
+    stachyose = SPLIT["n27272_v10_t10"]
+    assert stachyose["sizes"][0] == 21818 != int(27272 * 0.8)
+    half_up = []
+    for c in SPLIT.values():
+        n, v, t = c["n"], c["val_split"], c["test_split"]
+        train = int(np.floor(n * (1 - (v + t)) + 0.5))
+        val = int(np.floor((n - train) * (v / (v + t)) + 0.5))
+        half_up.append([train, val, n - train - val] != c["sizes"])
+    assert any(half_up), "no x.5 case where round-half-even and half-up differ"

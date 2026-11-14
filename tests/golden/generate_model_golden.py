@@ -11,6 +11,8 @@ Model golden M-1 on dataset G-B (grid 1.0, l_max 2, all 60 frames of
 ``model_<variant>.npz``
     Initial weights (``set_random_seed(1234)`` after ``clear_session()``), the first
     five molecules of the test split and ``model(x, training=False)`` per molecule.
+    ``model_lr_energy_k1.npz`` is the forward-only variant with an explicit
+    K1 != N_max (``M1_local`` < n_max_local, ``M1_long`` > n_max_long_range).
 ``train_lr_energy.npz``
     Weights after one epoch of the unchanged ``Training.start_training`` (starting
     from exactly the weights of ``model_lr_energy.npz``), epoch losses from
@@ -83,7 +85,12 @@ VARIANTS: dict[str, tuple[bool, bool]] = {
     "lr_energy": (True, True),
     "local_energy": (False, True),
     "lr_forces": (True, False),
+    "lr_energy_k1": (True, True),
 }
+# Forward-only variants with an explicit K1 (M1_local, M1_long) instead of N_max = (10, 20)
+# (presets stachyose / legacy-head use K1 30/6). M2 stays 4/1, so the model keeps the
+# flatten-and-concatenate branch of get_long_and_local_model.
+K1_VARIANTS: dict[str, tuple[int, int]] = {"lr_energy_k1": (6, 24)}
 
 TRAIN_VARIANT = "lr_energy"
 TRAIN = {
@@ -152,12 +159,15 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def hyperparameters(n_max_local: int, n_max_long_range: int, **train: Any) -> SimpleNamespace:
-    """Attribute object as ``Constants.Hyperparameters`` (the legacy code uses attributes)."""
+def hyperparameters(M1_local: int, M1_long: int, **train: Any) -> SimpleNamespace:
+    """Attribute object as ``Constants.Hyperparameters`` (the legacy code uses attributes).
+
+    M-1 passes ``M1_local, M1_long = n_max_local, n_max_long_range`` (K1 = N_max).
+    """
     return SimpleNamespace(
-        M1_local=n_max_local,
+        M1_local=M1_local,
         M2_local=MODEL["M2_local"],
-        M1_long=n_max_long_range,
+        M1_long=M1_long,
         M2_long=MODEL["M2_long"],
         embedding_dims=list(MODEL["embedding_dims"]),
         **train,
@@ -326,7 +336,8 @@ def model_golden(
 ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     tf = _tf(ns)
     consts = configure_variant(ns, variant, n_max)
-    hp = hyperparameters(*n_max)
+    m1 = K1_VARIANTS.get(variant, n_max)
+    hp = hyperparameters(*m1)
     model, layers = build_model(ns, hp)
     weighted, order, weightless = layer_tables(layers)
     weights = weight_arrays(layers)
@@ -367,6 +378,9 @@ def model_golden(
         "sum_energy": np.asarray(sum_energy, dtype=np.float32),
         "sum_all": np.asarray(sum_all, dtype=np.float32),
     }
+    if variant in K1_VARIANTS:
+        arrays["M1_local"] = np.int64(m1[0])
+        arrays["M1_long"] = np.int64(m1[1])
     info = {
         "use_long_range": use_long_range,
         "predict_only_energy": VARIANTS[variant][1],
@@ -382,6 +396,9 @@ def model_golden(
         "construction_order": order,
         "model_layers": [layer.name for layer in model.layers],
     }
+    if variant in K1_VARIANTS:
+        info["M1_local"], info["M1_long"] = m1
+        info["note"] = "forward only (no training/eval golden); K1 != N_max"
     return arrays, info
 
 

@@ -8,6 +8,10 @@ Run in the golden env (legacy code needs TF 2.21 + tf_keras)::
 Writes into ``--out`` (default ``tests/fixtures/golden``) and the synthetic input
 data into its parent (``tests/fixtures``). ``--check`` regenerates everything in a
 temp dir and compares it bit for bit with the committed files.
+
+``data_split.npz`` freezes the pandas split rule of ``create_dataset`` for many
+frame counts (the dataset goldens alone use n = 60, where every split size is an
+integer and the rounding of ``df.sample(frac=...)`` stays unchecked).
 """
 
 from __future__ import annotations
@@ -57,6 +61,21 @@ DESCRIPTOR_CASES: dict[str, tuple[str, str, int | None, bool]] = {
 DATASET_CASES: dict[str, str] = {"GA": "G-A", "GB": "G-B"}
 SPLITS = ("train", "val", "test")
 SPLIT_FILES = {"train": "train.pkl.gzip", "val": "val.pkl.gzip", "test": "test.pkl.gzip"}
+
+# Split golden: the legacy split expressions (verbatim, ``Dataset.py:475-477`` in
+# ``create_dataset``) run on a dummy DataFrame with a RangeIndex of n rows.
+# ``generate`` verifies that these lines occur unchanged in the legacy source.
+LEGACY_SPLIT_CODE = (
+    "train_df = df.sample(frac=1 - (val_split + test_split), random_state=42)\n"
+    "val_df = df.drop(train_df.index).sample("
+    "frac=val_split / (val_split + test_split), random_state=42)\n"
+    "test_df = df.drop(train_df.index).drop(val_df.index)\n"
+)
+# n = 27272: Stachyose (int() truncation gives a different train split); 63, 65:
+# x.5 cases (round half to even differs from half up); 7, 13, 61, 101: small odd n.
+SPLIT_SIZES = (7, 13, 60, 61, 63, 65, 101, 27272, 65000)
+SPLIT_FRACTIONS = ((0.1, 0.1), (0.05, 0.15))
+SPLIT_MAX_STORED = 1000  # n above this: sizes and sha256 only, no index arrays
 
 
 # --------------------------------------------------------------------------- inputs
@@ -239,6 +258,65 @@ def dataset_golden(ns: Any, data_dir: Path, cfg: dict[str, Any]) -> tuple[dict, 
     return arrays, stats
 
 
+# --------------------------------------------------------------------------- split
+
+
+def split_case_name(n: int, val_split: float, test_split: float) -> str:
+    return f"n{n}_v{round(val_split * 100):02d}_t{round(test_split * 100):02d}"
+
+
+def index_sha256(index: np.ndarray) -> str:
+    """sha256 of an index sequence as little-endian int64 bytes."""
+    return hashlib.sha256(np.asarray(index, dtype="<i8").tobytes()).hexdigest()
+
+
+def legacy_split_code(src: Path) -> str:
+    """``LEGACY_SPLIT_CODE`` after checking it against the legacy ``Dataset.py``."""
+    lines = [line.strip() for line in (src / "Dataset.py").read_text().splitlines()]
+    want = LEGACY_SPLIT_CODE.splitlines()
+    hits = [i for i in range(len(lines)) if lines[i : i + len(want)] == want]
+    if len(hits) != 1:
+        raise RuntimeError(f"legacy split expressions not found exactly once (hits: {hits})")
+    return LEGACY_SPLIT_CODE
+
+
+def split_golden(code: str) -> tuple[dict, dict]:
+    import pandas as pd
+
+    arrays: dict[str, np.ndarray] = {}
+    stats: dict[str, Any] = {}
+    names = []
+    for n in SPLIT_SIZES:
+        for val_split, test_split in SPLIT_FRACTIONS:
+            scope: dict[str, Any] = {
+                "df": pd.DataFrame({"frame": np.arange(n)}),
+                "val_split": val_split,
+                "test_split": test_split,
+            }
+            exec(code, {}, scope)  # verbatim legacy expressions
+            parts = {s: scope[f"{s}_df"].index.to_numpy().astype(np.int64) for s in SPLITS}
+            name = split_case_name(n, val_split, test_split)
+            names.append(name)
+            stored = n <= SPLIT_MAX_STORED
+            p = f"{name}__"
+            arrays[p + "n"] = np.int64(n)
+            arrays[p + "fractions"] = np.array([val_split, test_split], dtype=np.float64)
+            arrays[p + "sizes"] = np.array([len(parts[s]) for s in SPLITS], dtype=np.int64)
+            arrays[p + "sha256"] = np.array([index_sha256(parts[s]) for s in SPLITS])
+            if stored:
+                for s in SPLITS:
+                    arrays[p + s] = parts[s].astype(np.int32)
+            stats[name] = {
+                "n": n,
+                "val_split": val_split,
+                "test_split": test_split,
+                "sizes": [len(parts[s]) for s in SPLITS],
+                "indices_stored": stored,
+            }
+    arrays["cases"] = np.array(names)
+    return arrays, stats
+
+
 # --------------------------------------------------------------------------- manifest
 
 
@@ -292,6 +370,7 @@ def generate(out: Path, ref: str) -> dict[str, Any]:
             },
             "descriptors": {},
             "datasets": {},
+            "splits": {},
         }
         for name, cfg in CONFIGS.items():
             manifest["configs"][name] = legacy.configure(ns, **cfg)
@@ -328,6 +407,17 @@ def generate(out: Path, ref: str) -> dict[str, Any]:
                 f"splits={stats['splits']}",
                 flush=True,
             )
+
+        arrays, stats = split_golden(legacy_split_code(src))
+        fixtures.save_npz(out / "data_split.npz", arrays)
+        manifest["splits"] = {
+            "code": LEGACY_SPLIT_CODE.splitlines(),
+            "legacy_lines": "Dataset.py:475-477 (create_dataset)",
+            "index": "RangeIndex(n)",
+            "sha256": "sha256 of each index sequence as little-endian int64 bytes",
+            "cases": stats,
+        }
+        print(f"split: {len(stats)} cases, n in {list(SPLIT_SIZES)}", flush=True)
     finally:
         legacy.cleanup_legacy(src)
 
@@ -339,6 +429,7 @@ def generate(out: Path, ref: str) -> dict[str, Any]:
         ]
         + [out / f"data_descriptors_{c}.npz" for c in DESCRIPTOR_CASES]
         + [out / f"data_dataset_{d}.npz" for d in DATASET_CASES]
+        + [out / "data_split.npz"]
     )
     manifest["files"] = {
         str(p.relative_to(data_dir)): {"sha256": sha256(p), "bytes": p.stat().st_size}

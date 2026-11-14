@@ -38,7 +38,7 @@ def test_manifest_lists_all_model_golden_files() -> None:
     on_disk = {f"golden/{p.name}" for pat in patterns for p in fx.golden_dir().glob(pat)}
     assert on_disk == set(MANIFEST["files"])
     assert len(MANIFEST["legacy_commit"]) == 40
-    assert VARIANTS == ["local_energy", "lr_energy", "lr_forces"]
+    assert VARIANTS == ["local_energy", "lr_energy", "lr_energy_k1", "lr_forces"]
 
 
 def test_task_fixture_size_below_limit() -> None:
@@ -148,14 +148,48 @@ def test_m1_hyperparameters() -> None:
         "lr_energy": (True, True),
         "local_energy": (False, True),
         "lr_forces": (True, False),
+        "lr_energy_k1": (True, True),
     }
+    for variant, info in MANIFEST["variants"].items():
+        if variant != "lr_energy_k1":
+            assert info["hyperparameters"]["M1_local"] == data["n_max_local"]
+            assert info["hyperparameters"]["M1_long"] == data["n_max_long_range"]
+
+
+def test_k1_variant_differs_from_n_max() -> None:
+    """lr_energy_k1: explicit K1 with M1_local < n_max_local and M1_long > n_max_long_range."""
+    g = fx.load_model_golden("lr_energy_k1")
+    info = MANIFEST["variants"]["lr_energy_k1"]
+    n_loc, n_lr = int(g["n_max_local"]), int(g["n_max_long_range"])
+    m1_loc, m1_lr = int(g["M1_local"]), int(g["M1_long"])
+    assert m1_loc < n_loc and m1_lr > n_lr
+    assert (info["M1_local"], info["M1_long"]) == (m1_loc, m1_lr)
+    hp = info["hyperparameters"]
+    assert (hp["M1_local"], hp["M1_long"], hp["M2_local"], hp["M2_long"]) == (m1_loc, m1_lr, 4, 1)
+    assert hp["embedding_dims"] == MANIFEST["model"]["embedding_dims"]
+    dense = g["weights_by_class"]["Dense"]
+    widths = [ws[0].shape[1] for ws in dense]
+    # embedding heads reshape to (n_max, M1); fitting input = M1_local*M2_local + M1_long*M2_long
+    assert n_loc * m1_loc in widths and n_lr * m1_lr in widths
+    assert n_loc * n_loc not in widths and n_lr * n_lr not in widths
+    assert any(ws[0].shape[0] == m1_loc * 4 + m1_lr * 1 for ws in dense)
+    assert "lr_energy_k1" not in MANIFEST["train"] and "lr_energy_k1" not in MANIFEST["eval"]
 
 
 def test_lr_variants_share_weights_except_head() -> None:
     a = fx.load_model_golden("lr_energy")["weights_by_class"]
     b = fx.load_model_golden("lr_forces")["weights_by_class"]
-    assert len(a["Dense"]) == len(b["Dense"])
+    assert set(a) == set(b)
     assert b["Dense"][-1][0].shape[1] == 4 and a["Dense"][-1][0].shape[1] == 1
+    for cls in a:
+        assert len(a[cls]) == len(b[cls])
+        layers = list(zip(a[cls], b[cls], strict=True))
+        if cls == "Dense":
+            layers = layers[:-1]  # the output head differs (1 vs 4 units)
+        for k, (wa, wb) in enumerate(layers):
+            assert len(wa) == len(wb)
+            for j, (x, y) in enumerate(zip(wa, wb, strict=True)):
+                assert np.array_equal(x, y), f"{cls}[{k}][{j}]"
 
 
 # --------------------------------------------------------------------------- training

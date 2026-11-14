@@ -169,8 +169,8 @@ Checkpoints
 
 # lrmlp: project venv, local data and run outputs
 .venv/
-data/
-runs/
+/data/
+/runs/
 benchmarks/results/tmp/
 
 # Model weights are artefacts, except the committed test fixtures

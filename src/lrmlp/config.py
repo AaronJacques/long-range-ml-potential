@@ -92,8 +92,9 @@ class GridConfig:
         rest into the reduced grid (p. 43). ``"legacy"`` reproduces the cell-based
         assignment of the legacy code (``Dataset.py:310-356``, deviation A01/A02).
     sort_neighbours : bool
-        Sort the rows of the local descriptor matrix by distance. Not part of the
-        thesis. Legacy: ``Dataset.sort_matrix``.
+        Sort the local rows (with Z_i) and the long-range rows (with F_i) of each
+        atom by descending first column (s resp. 1/r), as ``Dataset.sort_matrix``
+        does (``Dataset.py:362-376``). Not part of the thesis.
     """
 
     grid_size: float = 1.0
@@ -121,10 +122,12 @@ class GridConfig:
 
     @property
     def cutoff(self) -> float:
-        """Cutoff radius r_c in Å (Tab. 5.1).
+        """Cutoff radius r_c in Å (Tab. 5.1, Eq. 4.14, p. 42).
 
-        All atoms in cells up to level ``max_local_level`` lie within this radius.
-        The expression is exactly the one of the legacy code (``Constants.py:34``).
+        The thesis states that all cells of G_i lie within r_c; in 3D this is false
+        (distances in G_i reach up to √3·(l_max+1)·Δg), see deviation A02 and
+        ``assignment``. The expression is exactly the one of the legacy code
+        (``Constants.py:34``).
         """
         return (self.max_local_level + 1 + 0.5**0.5) * self.grid_size
 
@@ -458,7 +461,8 @@ class ExperimentConfig:
         overrides : Mapping or sequence of str
             Dotted keys (``"train.epochs"``) mapped to new values, or strings of the
             form ``"train.epochs=2"``; see :func:`parse_overrides`. Relative paths are
-            kept as given.
+            kept as given (not resolved). Only :func:`load_config` resolves relative
+            paths, also those from overrides, against the config file's directory.
 
         Returns
         -------
@@ -635,7 +639,10 @@ def load_config(
     ExperimentConfig
         The configuration. Relative paths in ``data.sources``, ``data.output_dir``
         and ``train.run_root`` (also those given as overrides) are resolved relative
-        to the directory of ``path``. Without ``data.output_dir`` the dataset goes
+        to the directory of ``path``, not to the current working directory: with
+        ``configs/a.toml`` the override ``train.run_root=runs`` gives
+        ``configs/runs``. Callers that want CWD-relative override paths must make
+        them absolute before passing them. Without ``data.output_dir`` the dataset goes
         to ``data/processed/<name>`` below that directory.
 
     Raises

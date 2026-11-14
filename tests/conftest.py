@@ -2,7 +2,10 @@
 
 # The environment must be fixed before anything can import TensorFlow:
 # TF_USE_LEGACY_KERAS=1 would switch ``tf.keras`` to ``tf_keras``, but the
-# tests always run against Keras 3.
+# tests always run against Keras 3. The variable is removed unconditionally,
+# also for ``legacy_env`` tests: they must not load the legacy code in-process
+# (``golden.legacy.load_legacy`` would raise) but start it in a subprocess with
+# ``env={**os.environ, "TF_USE_LEGACY_KERAS": "1"}`` (e.g. the generators' --check).
 import os
 
 os.environ.pop("TF_USE_LEGACY_KERAS", None)

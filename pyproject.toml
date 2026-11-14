@@ -84,7 +84,7 @@ addopts = "-ra --strict-markers"
 markers = [
     "slow: long-running end-to-end tests (run in CI only on push to main)",
     "golden: regression tests against golden fixtures generated from the legacy code",
-    "legacy_env: needs TF_USE_LEGACY_KERAS=1 and the legacy code (skipped unless LRMLP_LEGACY_ENV=1)",
+    "legacy_env: needs the legacy env and code (skipped unless LRMLP_LEGACY_ENV=1); conftest.py always unsets TF_USE_LEGACY_KERAS, so such tests must run the legacy code in a subprocess with env={**os.environ, 'TF_USE_LEGACY_KERAS': '1'}",
 ]
 filterwarnings = ["default"]
 
