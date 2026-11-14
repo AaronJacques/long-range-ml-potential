@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import zipfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -213,3 +214,98 @@ def legacy_expected_counts(
                 cells.add(int(cell_of[j]))
         lr[i] = len(cells)
     return cls["local"].sum(axis=1).astype(np.int64), lr
+
+
+# --- model, training, schedule and evaluation golden (T03, generate_model_golden.py) ---
+#
+# model_<variant>.npz (variant in lr_energy, local_energy, lr_forces), model M-1 on G-B:
+#
+#     {Class}__{k:03d}__{j}       initial weights; k = construction index within the layer
+#                                 class (= Keras 2 name suffix), j = index in get_weights()
+#     count_params, seed, n_max_local, n_max_long_range, use_long_range, predict_only_energy
+#     index (5,), energy (5,), atom_offsets (6,), order (A,)   first 5 test molecules
+#     x__local_matrix, x__local_numbers [, x__long_range_matrix, x__long_range_features]
+#                                 padded float32 inputs in legacy row order
+#     output (A, 1 | 4)           model(x, training=False) per molecule, concatenated
+#     sum_energy (5,)             reduce_sum(output[:, 0]) per molecule
+#     sum_all (5,)                reduce_sum(output) per molecule (evaluate.py, B05)
+#
+# train_lr_energy.npz: weights after one epoch ({Class}__{k:03d}__{j}), energy_loss,
+# val_energy_loss, final_loss, steps, epochs. Start weights = model_lr_energy.npz.
+# schedules.json, eval_lr_energy.json and manifest_model.json are plain JSON.
+
+_WEIGHT_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9]*)__(\d{3})__(\d+)$")
+
+
+def load_model_manifest() -> dict[str, Any]:
+    """Load ``golden/manifest_model.json``."""
+    return json.loads((golden_dir() / "manifest_model.json").read_text())
+
+
+def weights_by_class(arrays: dict[str, np.ndarray]) -> dict[str, list[list[np.ndarray]]]:
+    """Group ``{Class}__{k:03d}__{j}`` entries as ``{Class: [[w_0, w_1, ...] per layer k]}``.
+
+    Layers are in construction order per class (``k`` = 0, 1, ...), the inner list
+    follows ``layer.get_weights()``.
+    """
+    grouped: dict[str, dict[int, dict[int, np.ndarray]]] = {}
+    for key, value in arrays.items():
+        m = _WEIGHT_KEY.match(key)
+        if m:
+            layer = grouped.setdefault(m.group(1), {}).setdefault(int(m.group(2)), {})
+            layer[int(m.group(3))] = value
+    out: dict[str, list[list[np.ndarray]]] = {}
+    for cls, layers in grouped.items():
+        if sorted(layers) != list(range(len(layers))):
+            raise ValueError(f"{cls}: layer indices are not contiguous: {sorted(layers)}")
+        out[cls] = []
+        for k in range(len(layers)):
+            ws = layers[k]
+            if sorted(ws) != list(range(len(ws))):
+                raise ValueError(f"{cls}[{k}]: weight indices are not contiguous")
+            out[cls].append([ws[j] for j in range(len(ws))])
+    return out
+
+
+def _split_weights(raw: dict[str, np.ndarray]) -> dict[str, Any]:
+    rest: dict[str, Any] = {k: v for k, v in raw.items() if not _WEIGHT_KEY.match(k)}
+    rest["weights_by_class"] = weights_by_class(raw)
+    return rest
+
+
+def load_model_golden(variant: str) -> dict[str, Any]:
+    """Load ``model_<variant>.npz``.
+
+    Returns all non-weight arrays (see the key list above) plus ``weights_by_class``
+    and, from the manifest, ``layers`` (weighted layer table), ``weightless_layers``
+    (classes without weights in construction order) and ``construction_order``.
+    """
+    out = _split_weights(_load(golden_dir() / f"model_{variant}.npz"))
+    info = load_model_manifest()["variants"][variant]
+    for key in ("layers", "weightless_layers", "construction_order"):
+        out[key] = info[key]
+    return out
+
+
+def load_train_golden(variant: str) -> dict[str, Any]:
+    """Load ``train_<variant>.npz``.
+
+    ``weights_by_class`` holds the weights after training; ``start_weights_by_class``
+    the initial weights from the referenced model golden.
+    """
+    out = _split_weights(_load(golden_dir() / f"train_{variant}.npz"))
+    info = load_model_manifest()["train"][variant]
+    start = _load(golden_dir() / info["start_weights"])
+    out["start_weights_by_class"] = weights_by_class(start)
+    out["info"] = info
+    return out
+
+
+def load_schedules_golden() -> dict[str, Any]:
+    """Load ``golden/schedules.json`` (learning-rate and loss-weighting schedules)."""
+    return json.loads((golden_dir() / "schedules.json").read_text())
+
+
+def load_eval_golden(variant: str) -> dict[str, Any]:
+    """Load ``golden/eval_<variant>.json`` (test MAE and per-molecule absolute errors)."""
+    return json.loads((golden_dir() / f"eval_{variant}.json").read_text())

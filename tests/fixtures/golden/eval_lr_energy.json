@@ -1,0 +1,28 @@
+{
+  "variant": "lr_energy",
+  "checkpoint": "model_epoch_0.h5",
+  "dataset": "test.pkl.gzip",
+  "formula": "mean_k |sum_i E_i - E_k| over the test molecules (float32)",
+  "mae_in_memory": 1.5624459981918335,
+  "per_molecule_abs_error_in_memory": [
+    2.279172420501709,
+    0.9483155012130737,
+    2.4727206230163574,
+    1.709417700767517,
+    0.9645159244537354,
+    1.000532865524292
+  ],
+  "path": "evaluate_model_h5",
+  "mae": 1.5624459981918335,
+  "mae_printed": "1.56245",
+  "per_molecule_abs_error": [
+    2.279172420501709,
+    0.9483155012130737,
+    2.4727206230163574,
+    1.709417700767517,
+    0.9645159244537354,
+    1.000532865524292
+  ],
+  "test_size": 6,
+  "h5_equals_in_memory": true
+}

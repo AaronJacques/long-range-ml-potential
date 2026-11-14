@@ -1,0 +1,3758 @@
+{
+  "generator": "tests/golden/generate_model_golden.py",
+  "generator_version": 1,
+  "legacy_ref": "9413bfd",
+  "legacy_commit": "9413bfd17130166dca96f995b66c358019c6b35a",
+  "versions": {
+    "python": "3.12.10",
+    "numpy": "1.26.4",
+    "pandas": "2.1.4",
+    "tensorflow": "2.21.0",
+    "tf_keras": "2.21.0",
+    "h5py": "3.14.0"
+  },
+  "dataset": {
+    "name": "G-B",
+    "source": "synthetic_small.npz",
+    "source_sha256": "401a824f9ca807a7dd42f77b0d721c5276761042bb8b29e54dede43d1efc9e22",
+    "grid_size": 1.0,
+    "max_local_level": 2,
+    "val_split": 0.1,
+    "test_split": 0.1,
+    "random_state": 42,
+    "shuffle_buffer_size": 1,
+    "splits": {
+      "train": 48,
+      "val": 6,
+      "test": 6
+    },
+    "n_max_local": 10,
+    "n_max_long_range": 20,
+    "model_inputs": "first 5 molecules of the test split"
+  },
+  "model": {
+    "embedding_dims": [
+      16,
+      32,
+      32
+    ],
+    "M2_local": 4,
+    "M2_long": 1,
+    "activation": "elu",
+    "M1_local": 10,
+    "M1_long": 20,
+    "seed": 1234,
+    "seeding": "tf.keras.backend.clear_session(); tf.keras.utils.set_random_seed(seed)",
+    "weight_keys": "{Class}__{k:03d}__{j}: k = construction index per class, j = index in layer.get_weights()"
+  },
+  "variants": {
+    "lr_energy": {
+      "use_long_range": true,
+      "predict_only_energy": true,
+      "constants": {
+        "GRID_SIZE": 1.0,
+        "MAX_LOCAL_LEVEL": 2,
+        "CUT_OFF": 3.7071067811865475,
+        "INNER_CUT_OFF": 3.5071067811865473,
+        "MAX_ATOM_ELEMENTS": 100,
+        "use_charge_number": true,
+        "sort_matrix": false,
+        "SHUFFLE_BUFFER_SIZE": 1,
+        "n_max_local": 10,
+        "n_max_long_range": 20,
+        "predict_only_energy": true,
+        "use_long_range": true,
+        "activation": "elu"
+      },
+      "hyperparameters": {
+        "M1_local": 10,
+        "M2_local": 4,
+        "M1_long": 20,
+        "M2_long": 1,
+        "embedding_dims": [
+          16,
+          32,
+          32
+        ]
+      },
+      "count_params": 158453,
+      "n_molecules": 5,
+      "n_atoms": 105,
+      "inputs": [
+        "local_matrix",
+        "local_numbers",
+        "long_range_matrix",
+        "long_range_features"
+      ],
+      "output_width": 1,
+      "layers": [
+        {
+          "class": "Dense",
+          "index": 0,
+          "legacy_name": "dense",
+          "weight_shapes": [
+            [
+              30,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 0,
+          "legacy_name": "layer_normalization",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 1,
+          "legacy_name": "dense_1",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 2,
+          "legacy_name": "dense_2",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 3,
+          "legacy_name": "dense_3",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 1,
+          "legacy_name": "layer_normalization_1",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 2,
+          "legacy_name": "layer_normalization_2",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 4,
+          "legacy_name": "dense_4",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 5,
+          "legacy_name": "dense_5",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 6,
+          "legacy_name": "dense_6",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 3,
+          "legacy_name": "layer_normalization_3",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 7,
+          "legacy_name": "dense_7",
+          "weight_shapes": [
+            [
+              16,
+              100
+            ],
+            [
+              100
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 8,
+          "legacy_name": "dense_8",
+          "weight_shapes": [
+            [
+              2040,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 4,
+          "legacy_name": "layer_normalization_4",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 9,
+          "legacy_name": "dense_9",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 10,
+          "legacy_name": "dense_10",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 11,
+          "legacy_name": "dense_11",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 5,
+          "legacy_name": "layer_normalization_5",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 6,
+          "legacy_name": "layer_normalization_6",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 12,
+          "legacy_name": "dense_12",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 13,
+          "legacy_name": "dense_13",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 14,
+          "legacy_name": "dense_14",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 7,
+          "legacy_name": "layer_normalization_7",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 15,
+          "legacy_name": "dense_15",
+          "weight_shapes": [
+            [
+              16,
+              400
+            ],
+            [
+              400
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 16,
+          "legacy_name": "dense_16",
+          "weight_shapes": [
+            [
+              60,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 8,
+          "legacy_name": "layer_normalization_8",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 17,
+          "legacy_name": "dense_17",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 18,
+          "legacy_name": "dense_18",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 19,
+          "legacy_name": "dense_19",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 9,
+          "legacy_name": "layer_normalization_9",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 10,
+          "legacy_name": "layer_normalization_10",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 20,
+          "legacy_name": "dense_20",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 21,
+          "legacy_name": "dense_21",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 22,
+          "legacy_name": "dense_22",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 11,
+          "legacy_name": "layer_normalization_11",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 23,
+          "legacy_name": "dense_23",
+          "weight_shapes": [
+            [
+              128,
+              1
+            ],
+            [
+              1
+            ]
+          ]
+        }
+      ],
+      "weightless_layers": [
+        "InputLayer",
+        "InputLayer",
+        "InputLayer",
+        "InputLayer",
+        "Lambda",
+        "Flatten",
+        "Concatenate",
+        "Dropout",
+        "Add",
+        "Dropout",
+        "Add",
+        "Reshape",
+        "Lambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "Lambda",
+        "Flatten",
+        "Concatenate",
+        "Dropout",
+        "Add",
+        "Dropout",
+        "Add",
+        "Reshape",
+        "Lambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "Flatten",
+        "Flatten",
+        "Concatenate",
+        "Dropout",
+        "Dropout",
+        "Add",
+        "Dropout",
+        "Add"
+      ],
+      "construction_order": [
+        {
+          "class": "InputLayer",
+          "index": 0,
+          "legacy_name": "input_local_matrix",
+          "weight_shapes": []
+        },
+        {
+          "class": "InputLayer",
+          "index": 1,
+          "legacy_name": "input_atomic_numbers",
+          "weight_shapes": []
+        },
+        {
+          "class": "InputLayer",
+          "index": 2,
+          "legacy_name": "input_long_range_matrix",
+          "weight_shapes": []
+        },
+        {
+          "class": "InputLayer",
+          "index": 3,
+          "legacy_name": "input_long_range_atomic_features",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 0,
+          "legacy_name": "lambda",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 0,
+          "legacy_name": "flatten",
+          "weight_shapes": []
+        },
+        {
+          "class": "Concatenate",
+          "index": 0,
+          "legacy_name": "concatenate",
+          "weight_shapes": []
+        },
+        {
+          "class": "Dense",
+          "index": 0,
+          "legacy_name": "dense",
+          "weight_shapes": [
+            [
+              30,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 0,
+          "legacy_name": "layer_normalization",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 1,
+          "legacy_name": "dense_1",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 2,
+          "legacy_name": "dense_2",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 3,
+          "legacy_name": "dense_3",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 0,
+          "legacy_name": "dropout",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 0,
+          "legacy_name": "add",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 1,
+          "legacy_name": "layer_normalization_1",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 2,
+          "legacy_name": "layer_normalization_2",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 4,
+          "legacy_name": "dense_4",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 5,
+          "legacy_name": "dense_5",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 6,
+          "legacy_name": "dense_6",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 1,
+          "legacy_name": "dropout_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 1,
+          "legacy_name": "add_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 3,
+          "legacy_name": "layer_normalization_3",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 7,
+          "legacy_name": "dense_7",
+          "weight_shapes": [
+            [
+              16,
+              100
+            ],
+            [
+              100
+            ]
+          ]
+        },
+        {
+          "class": "Reshape",
+          "index": 0,
+          "legacy_name": "reshape",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 1,
+          "legacy_name": "lambda_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 0,
+          "legacy_name": "tf.linalg.matmul",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 1,
+          "legacy_name": "tf.linalg.matmul_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 2,
+          "legacy_name": "tf.linalg.matmul_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 2,
+          "legacy_name": "lambda_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 1,
+          "legacy_name": "flatten_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Concatenate",
+          "index": 1,
+          "legacy_name": "concatenate_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Dense",
+          "index": 8,
+          "legacy_name": "dense_8",
+          "weight_shapes": [
+            [
+              2040,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 4,
+          "legacy_name": "layer_normalization_4",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 9,
+          "legacy_name": "dense_9",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 10,
+          "legacy_name": "dense_10",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 11,
+          "legacy_name": "dense_11",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 2,
+          "legacy_name": "dropout_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 2,
+          "legacy_name": "add_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 5,
+          "legacy_name": "layer_normalization_5",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 6,
+          "legacy_name": "layer_normalization_6",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 12,
+          "legacy_name": "dense_12",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 13,
+          "legacy_name": "dense_13",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 14,
+          "legacy_name": "dense_14",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 3,
+          "legacy_name": "dropout_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 3,
+          "legacy_name": "add_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 7,
+          "legacy_name": "layer_normalization_7",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 15,
+          "legacy_name": "dense_15",
+          "weight_shapes": [
+            [
+              16,
+              400
+            ],
+            [
+              400
+            ]
+          ]
+        },
+        {
+          "class": "Reshape",
+          "index": 1,
+          "legacy_name": "reshape_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 3,
+          "legacy_name": "lambda_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 3,
+          "legacy_name": "tf.linalg.matmul_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 4,
+          "legacy_name": "tf.linalg.matmul_4",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 5,
+          "legacy_name": "tf.linalg.matmul_5",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 2,
+          "legacy_name": "flatten_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 3,
+          "legacy_name": "flatten_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "Concatenate",
+          "index": 2,
+          "legacy_name": "concatenate_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Dense",
+          "index": 16,
+          "legacy_name": "dense_16",
+          "weight_shapes": [
+            [
+              60,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 4,
+          "legacy_name": "dropout_4",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 8,
+          "legacy_name": "layer_normalization_8",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 17,
+          "legacy_name": "dense_17",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 18,
+          "legacy_name": "dense_18",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 19,
+          "legacy_name": "dense_19",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 5,
+          "legacy_name": "dropout_5",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 4,
+          "legacy_name": "add_4",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 9,
+          "legacy_name": "layer_normalization_9",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 10,
+          "legacy_name": "layer_normalization_10",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 20,
+          "legacy_name": "dense_20",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 21,
+          "legacy_name": "dense_21",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 22,
+          "legacy_name": "dense_22",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 6,
+          "legacy_name": "dropout_6",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 5,
+          "legacy_name": "add_5",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 11,
+          "legacy_name": "layer_normalization_11",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 23,
+          "legacy_name": "dense_23",
+          "weight_shapes": [
+            [
+              128,
+              1
+            ],
+            [
+              1
+            ]
+          ]
+        }
+      ],
+      "model_layers": [
+        "input_local_matrix",
+        "input_atomic_numbers",
+        "input_long_range_matrix",
+        "input_long_range_atomic_features",
+        "lambda",
+        "flatten",
+        "lambda_2",
+        "flatten_1",
+        "concatenate",
+        "concatenate_1",
+        "dense",
+        "dense_8",
+        "layer_normalization",
+        "layer_normalization_4",
+        "dense_1",
+        "dense_9",
+        "dense_2",
+        "dense_10",
+        "dense_3",
+        "dense_11",
+        "dropout",
+        "dropout_2",
+        "add",
+        "add_2",
+        "layer_normalization_1",
+        "layer_normalization_5",
+        "layer_normalization_2",
+        "layer_normalization_6",
+        "dense_4",
+        "dense_12",
+        "dense_5",
+        "dense_13",
+        "dense_6",
+        "dense_14",
+        "dropout_1",
+        "dropout_3",
+        "add_1",
+        "add_3",
+        "layer_normalization_3",
+        "layer_normalization_7",
+        "dense_7",
+        "dense_15",
+        "reshape",
+        "reshape_1",
+        "lambda_1",
+        "lambda_3",
+        "tf.linalg.matmul",
+        "tf.linalg.matmul_3",
+        "tf.linalg.matmul_1",
+        "tf.linalg.matmul_4",
+        "tf.linalg.matmul_2",
+        "tf.linalg.matmul_5",
+        "flatten_2",
+        "flatten_3",
+        "concatenate_2",
+        "dense_16",
+        "dropout_4",
+        "layer_normalization_8",
+        "dense_17",
+        "dense_18",
+        "dense_19",
+        "dropout_5",
+        "add_4",
+        "layer_normalization_9",
+        "layer_normalization_10",
+        "dense_20",
+        "dense_21",
+        "dense_22",
+        "dropout_6",
+        "add_5",
+        "layer_normalization_11",
+        "dense_23"
+      ]
+    },
+    "local_energy": {
+      "use_long_range": false,
+      "predict_only_energy": true,
+      "constants": {
+        "GRID_SIZE": 1.0,
+        "MAX_LOCAL_LEVEL": 2,
+        "CUT_OFF": 3.7071067811865475,
+        "INNER_CUT_OFF": 3.5071067811865473,
+        "MAX_ATOM_ELEMENTS": 100,
+        "use_charge_number": true,
+        "sort_matrix": false,
+        "SHUFFLE_BUFFER_SIZE": 1,
+        "n_max_local": 10,
+        "n_max_long_range": 20,
+        "predict_only_energy": true,
+        "use_long_range": false,
+        "activation": "elu"
+      },
+      "hyperparameters": {
+        "M1_local": 10,
+        "M2_local": 4,
+        "M1_long": 20,
+        "M2_long": 1,
+        "embedding_dims": [
+          16,
+          32,
+          32
+        ]
+      },
+      "count_params": 112053,
+      "n_molecules": 5,
+      "n_atoms": 105,
+      "inputs": [
+        "local_matrix",
+        "local_numbers"
+      ],
+      "output_width": 1,
+      "layers": [
+        {
+          "class": "Dense",
+          "index": 0,
+          "legacy_name": "dense",
+          "weight_shapes": [
+            [
+              30,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 0,
+          "legacy_name": "layer_normalization",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 1,
+          "legacy_name": "dense_1",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 2,
+          "legacy_name": "dense_2",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 3,
+          "legacy_name": "dense_3",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 1,
+          "legacy_name": "layer_normalization_1",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 2,
+          "legacy_name": "layer_normalization_2",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 4,
+          "legacy_name": "dense_4",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 5,
+          "legacy_name": "dense_5",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 6,
+          "legacy_name": "dense_6",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 3,
+          "legacy_name": "layer_normalization_3",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 7,
+          "legacy_name": "dense_7",
+          "weight_shapes": [
+            [
+              16,
+              100
+            ],
+            [
+              100
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 8,
+          "legacy_name": "dense_8",
+          "weight_shapes": [
+            [
+              40,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 4,
+          "legacy_name": "layer_normalization_4",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 9,
+          "legacy_name": "dense_9",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 10,
+          "legacy_name": "dense_10",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 11,
+          "legacy_name": "dense_11",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 5,
+          "legacy_name": "layer_normalization_5",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 6,
+          "legacy_name": "layer_normalization_6",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 12,
+          "legacy_name": "dense_12",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 13,
+          "legacy_name": "dense_13",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 14,
+          "legacy_name": "dense_14",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 7,
+          "legacy_name": "layer_normalization_7",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 15,
+          "legacy_name": "dense_15",
+          "weight_shapes": [
+            [
+              128,
+              1
+            ],
+            [
+              1
+            ]
+          ]
+        }
+      ],
+      "weightless_layers": [
+        "InputLayer",
+        "InputLayer",
+        "Lambda",
+        "Flatten",
+        "Concatenate",
+        "Dropout",
+        "Add",
+        "Dropout",
+        "Add",
+        "Reshape",
+        "Lambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "Flatten",
+        "Dropout",
+        "Dropout",
+        "Add",
+        "Dropout",
+        "Add"
+      ],
+      "construction_order": [
+        {
+          "class": "InputLayer",
+          "index": 0,
+          "legacy_name": "input_local_matrix",
+          "weight_shapes": []
+        },
+        {
+          "class": "InputLayer",
+          "index": 1,
+          "legacy_name": "input_atomic_numbers",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 0,
+          "legacy_name": "lambda",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 0,
+          "legacy_name": "flatten",
+          "weight_shapes": []
+        },
+        {
+          "class": "Concatenate",
+          "index": 0,
+          "legacy_name": "concatenate",
+          "weight_shapes": []
+        },
+        {
+          "class": "Dense",
+          "index": 0,
+          "legacy_name": "dense",
+          "weight_shapes": [
+            [
+              30,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 0,
+          "legacy_name": "layer_normalization",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 1,
+          "legacy_name": "dense_1",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 2,
+          "legacy_name": "dense_2",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 3,
+          "legacy_name": "dense_3",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 0,
+          "legacy_name": "dropout",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 0,
+          "legacy_name": "add",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 1,
+          "legacy_name": "layer_normalization_1",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 2,
+          "legacy_name": "layer_normalization_2",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 4,
+          "legacy_name": "dense_4",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 5,
+          "legacy_name": "dense_5",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 6,
+          "legacy_name": "dense_6",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 1,
+          "legacy_name": "dropout_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 1,
+          "legacy_name": "add_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 3,
+          "legacy_name": "layer_normalization_3",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 7,
+          "legacy_name": "dense_7",
+          "weight_shapes": [
+            [
+              16,
+              100
+            ],
+            [
+              100
+            ]
+          ]
+        },
+        {
+          "class": "Reshape",
+          "index": 0,
+          "legacy_name": "reshape",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 1,
+          "legacy_name": "lambda_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 0,
+          "legacy_name": "tf.linalg.matmul",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 1,
+          "legacy_name": "tf.linalg.matmul_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 2,
+          "legacy_name": "tf.linalg.matmul_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 1,
+          "legacy_name": "flatten_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Dense",
+          "index": 8,
+          "legacy_name": "dense_8",
+          "weight_shapes": [
+            [
+              40,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 2,
+          "legacy_name": "dropout_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 4,
+          "legacy_name": "layer_normalization_4",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 9,
+          "legacy_name": "dense_9",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 10,
+          "legacy_name": "dense_10",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 11,
+          "legacy_name": "dense_11",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 3,
+          "legacy_name": "dropout_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 2,
+          "legacy_name": "add_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 5,
+          "legacy_name": "layer_normalization_5",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 6,
+          "legacy_name": "layer_normalization_6",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 12,
+          "legacy_name": "dense_12",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 13,
+          "legacy_name": "dense_13",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 14,
+          "legacy_name": "dense_14",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 4,
+          "legacy_name": "dropout_4",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 3,
+          "legacy_name": "add_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 7,
+          "legacy_name": "layer_normalization_7",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 15,
+          "legacy_name": "dense_15",
+          "weight_shapes": [
+            [
+              128,
+              1
+            ],
+            [
+              1
+            ]
+          ]
+        }
+      ],
+      "model_layers": [
+        "input_local_matrix",
+        "input_atomic_numbers",
+        "lambda",
+        "flatten",
+        "concatenate",
+        "dense",
+        "layer_normalization",
+        "dense_1",
+        "dense_2",
+        "dense_3",
+        "dropout",
+        "add",
+        "layer_normalization_1",
+        "layer_normalization_2",
+        "dense_4",
+        "dense_5",
+        "dense_6",
+        "dropout_1",
+        "add_1",
+        "layer_normalization_3",
+        "dense_7",
+        "reshape",
+        "lambda_1",
+        "tf.linalg.matmul",
+        "tf.linalg.matmul_1",
+        "tf.linalg.matmul_2",
+        "flatten_1",
+        "dense_8",
+        "dropout_2",
+        "layer_normalization_4",
+        "dense_9",
+        "dense_10",
+        "dense_11",
+        "dropout_3",
+        "add_2",
+        "layer_normalization_5",
+        "layer_normalization_6",
+        "dense_12",
+        "dense_13",
+        "dense_14",
+        "dropout_4",
+        "add_3",
+        "layer_normalization_7",
+        "dense_15"
+      ]
+    },
+    "lr_forces": {
+      "use_long_range": true,
+      "predict_only_energy": false,
+      "constants": {
+        "GRID_SIZE": 1.0,
+        "MAX_LOCAL_LEVEL": 2,
+        "CUT_OFF": 3.7071067811865475,
+        "INNER_CUT_OFF": 3.5071067811865473,
+        "MAX_ATOM_ELEMENTS": 100,
+        "use_charge_number": true,
+        "sort_matrix": false,
+        "SHUFFLE_BUFFER_SIZE": 1,
+        "n_max_local": 10,
+        "n_max_long_range": 20,
+        "predict_only_energy": false,
+        "use_long_range": true,
+        "activation": "elu"
+      },
+      "hyperparameters": {
+        "M1_local": 10,
+        "M2_local": 4,
+        "M1_long": 20,
+        "M2_long": 1,
+        "embedding_dims": [
+          16,
+          32,
+          32
+        ]
+      },
+      "count_params": 158840,
+      "n_molecules": 5,
+      "n_atoms": 105,
+      "inputs": [
+        "local_matrix",
+        "local_numbers",
+        "long_range_matrix",
+        "long_range_features"
+      ],
+      "output_width": 4,
+      "layers": [
+        {
+          "class": "Dense",
+          "index": 0,
+          "legacy_name": "dense",
+          "weight_shapes": [
+            [
+              30,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 0,
+          "legacy_name": "layer_normalization",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 1,
+          "legacy_name": "dense_1",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 2,
+          "legacy_name": "dense_2",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 3,
+          "legacy_name": "dense_3",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 1,
+          "legacy_name": "layer_normalization_1",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 2,
+          "legacy_name": "layer_normalization_2",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 4,
+          "legacy_name": "dense_4",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 5,
+          "legacy_name": "dense_5",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 6,
+          "legacy_name": "dense_6",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 3,
+          "legacy_name": "layer_normalization_3",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 7,
+          "legacy_name": "dense_7",
+          "weight_shapes": [
+            [
+              16,
+              100
+            ],
+            [
+              100
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 8,
+          "legacy_name": "dense_8",
+          "weight_shapes": [
+            [
+              2040,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 4,
+          "legacy_name": "layer_normalization_4",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 9,
+          "legacy_name": "dense_9",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 10,
+          "legacy_name": "dense_10",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 11,
+          "legacy_name": "dense_11",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 5,
+          "legacy_name": "layer_normalization_5",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 6,
+          "legacy_name": "layer_normalization_6",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 12,
+          "legacy_name": "dense_12",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 13,
+          "legacy_name": "dense_13",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 14,
+          "legacy_name": "dense_14",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 7,
+          "legacy_name": "layer_normalization_7",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 15,
+          "legacy_name": "dense_15",
+          "weight_shapes": [
+            [
+              16,
+              400
+            ],
+            [
+              400
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 16,
+          "legacy_name": "dense_16",
+          "weight_shapes": [
+            [
+              60,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 8,
+          "legacy_name": "layer_normalization_8",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 17,
+          "legacy_name": "dense_17",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 18,
+          "legacy_name": "dense_18",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 19,
+          "legacy_name": "dense_19",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 9,
+          "legacy_name": "layer_normalization_9",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 10,
+          "legacy_name": "layer_normalization_10",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 20,
+          "legacy_name": "dense_20",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 21,
+          "legacy_name": "dense_21",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 22,
+          "legacy_name": "dense_22",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 11,
+          "legacy_name": "layer_normalization_11",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 23,
+          "legacy_name": "dense_23",
+          "weight_shapes": [
+            [
+              128,
+              4
+            ],
+            [
+              4
+            ]
+          ]
+        }
+      ],
+      "weightless_layers": [
+        "InputLayer",
+        "InputLayer",
+        "InputLayer",
+        "InputLayer",
+        "Lambda",
+        "Flatten",
+        "Concatenate",
+        "Dropout",
+        "Add",
+        "Dropout",
+        "Add",
+        "Reshape",
+        "Lambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "Lambda",
+        "Flatten",
+        "Concatenate",
+        "Dropout",
+        "Add",
+        "Dropout",
+        "Add",
+        "Reshape",
+        "Lambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "TFOpLambda",
+        "Flatten",
+        "Flatten",
+        "Concatenate",
+        "Dropout",
+        "Dropout",
+        "Add",
+        "Dropout",
+        "Add"
+      ],
+      "construction_order": [
+        {
+          "class": "InputLayer",
+          "index": 0,
+          "legacy_name": "input_local_matrix",
+          "weight_shapes": []
+        },
+        {
+          "class": "InputLayer",
+          "index": 1,
+          "legacy_name": "input_atomic_numbers",
+          "weight_shapes": []
+        },
+        {
+          "class": "InputLayer",
+          "index": 2,
+          "legacy_name": "input_long_range_matrix",
+          "weight_shapes": []
+        },
+        {
+          "class": "InputLayer",
+          "index": 3,
+          "legacy_name": "input_long_range_atomic_features",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 0,
+          "legacy_name": "lambda",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 0,
+          "legacy_name": "flatten",
+          "weight_shapes": []
+        },
+        {
+          "class": "Concatenate",
+          "index": 0,
+          "legacy_name": "concatenate",
+          "weight_shapes": []
+        },
+        {
+          "class": "Dense",
+          "index": 0,
+          "legacy_name": "dense",
+          "weight_shapes": [
+            [
+              30,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 0,
+          "legacy_name": "layer_normalization",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 1,
+          "legacy_name": "dense_1",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 2,
+          "legacy_name": "dense_2",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 3,
+          "legacy_name": "dense_3",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 0,
+          "legacy_name": "dropout",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 0,
+          "legacy_name": "add",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 1,
+          "legacy_name": "layer_normalization_1",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 2,
+          "legacy_name": "layer_normalization_2",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 4,
+          "legacy_name": "dense_4",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 5,
+          "legacy_name": "dense_5",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 6,
+          "legacy_name": "dense_6",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 1,
+          "legacy_name": "dropout_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 1,
+          "legacy_name": "add_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 3,
+          "legacy_name": "layer_normalization_3",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 7,
+          "legacy_name": "dense_7",
+          "weight_shapes": [
+            [
+              16,
+              100
+            ],
+            [
+              100
+            ]
+          ]
+        },
+        {
+          "class": "Reshape",
+          "index": 0,
+          "legacy_name": "reshape",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 1,
+          "legacy_name": "lambda_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 0,
+          "legacy_name": "tf.linalg.matmul",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 1,
+          "legacy_name": "tf.linalg.matmul_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 2,
+          "legacy_name": "tf.linalg.matmul_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 2,
+          "legacy_name": "lambda_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 1,
+          "legacy_name": "flatten_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Concatenate",
+          "index": 1,
+          "legacy_name": "concatenate_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Dense",
+          "index": 8,
+          "legacy_name": "dense_8",
+          "weight_shapes": [
+            [
+              2040,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 4,
+          "legacy_name": "layer_normalization_4",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 9,
+          "legacy_name": "dense_9",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 10,
+          "legacy_name": "dense_10",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 11,
+          "legacy_name": "dense_11",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 2,
+          "legacy_name": "dropout_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 2,
+          "legacy_name": "add_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 5,
+          "legacy_name": "layer_normalization_5",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 6,
+          "legacy_name": "layer_normalization_6",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 12,
+          "legacy_name": "dense_12",
+          "weight_shapes": [
+            [
+              16,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 13,
+          "legacy_name": "dense_13",
+          "weight_shapes": [
+            [
+              32,
+              32
+            ],
+            [
+              32
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 14,
+          "legacy_name": "dense_14",
+          "weight_shapes": [
+            [
+              32,
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 3,
+          "legacy_name": "dropout_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 3,
+          "legacy_name": "add_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 7,
+          "legacy_name": "layer_normalization_7",
+          "weight_shapes": [
+            [
+              16
+            ],
+            [
+              16
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 15,
+          "legacy_name": "dense_15",
+          "weight_shapes": [
+            [
+              16,
+              400
+            ],
+            [
+              400
+            ]
+          ]
+        },
+        {
+          "class": "Reshape",
+          "index": 1,
+          "legacy_name": "reshape_1",
+          "weight_shapes": []
+        },
+        {
+          "class": "Lambda",
+          "index": 3,
+          "legacy_name": "lambda_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 3,
+          "legacy_name": "tf.linalg.matmul_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 4,
+          "legacy_name": "tf.linalg.matmul_4",
+          "weight_shapes": []
+        },
+        {
+          "class": "TFOpLambda",
+          "index": 5,
+          "legacy_name": "tf.linalg.matmul_5",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 2,
+          "legacy_name": "flatten_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Flatten",
+          "index": 3,
+          "legacy_name": "flatten_3",
+          "weight_shapes": []
+        },
+        {
+          "class": "Concatenate",
+          "index": 2,
+          "legacy_name": "concatenate_2",
+          "weight_shapes": []
+        },
+        {
+          "class": "Dense",
+          "index": 16,
+          "legacy_name": "dense_16",
+          "weight_shapes": [
+            [
+              60,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 4,
+          "legacy_name": "dropout_4",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 8,
+          "legacy_name": "layer_normalization_8",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 17,
+          "legacy_name": "dense_17",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 18,
+          "legacy_name": "dense_18",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 19,
+          "legacy_name": "dense_19",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 5,
+          "legacy_name": "dropout_5",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 4,
+          "legacy_name": "add_4",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 9,
+          "legacy_name": "layer_normalization_9",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 10,
+          "legacy_name": "layer_normalization_10",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 20,
+          "legacy_name": "dense_20",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 21,
+          "legacy_name": "dense_21",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 22,
+          "legacy_name": "dense_22",
+          "weight_shapes": [
+            [
+              128,
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dropout",
+          "index": 6,
+          "legacy_name": "dropout_6",
+          "weight_shapes": []
+        },
+        {
+          "class": "Add",
+          "index": 5,
+          "legacy_name": "add_5",
+          "weight_shapes": []
+        },
+        {
+          "class": "LayerNormalization",
+          "index": 11,
+          "legacy_name": "layer_normalization_11",
+          "weight_shapes": [
+            [
+              128
+            ],
+            [
+              128
+            ]
+          ]
+        },
+        {
+          "class": "Dense",
+          "index": 23,
+          "legacy_name": "dense_23",
+          "weight_shapes": [
+            [
+              128,
+              4
+            ],
+            [
+              4
+            ]
+          ]
+        }
+      ],
+      "model_layers": [
+        "input_local_matrix",
+        "input_atomic_numbers",
+        "input_long_range_matrix",
+        "input_long_range_atomic_features",
+        "lambda",
+        "flatten",
+        "lambda_2",
+        "flatten_1",
+        "concatenate",
+        "concatenate_1",
+        "dense",
+        "dense_8",
+        "layer_normalization",
+        "layer_normalization_4",
+        "dense_1",
+        "dense_9",
+        "dense_2",
+        "dense_10",
+        "dense_3",
+        "dense_11",
+        "dropout",
+        "dropout_2",
+        "add",
+        "add_2",
+        "layer_normalization_1",
+        "layer_normalization_5",
+        "layer_normalization_2",
+        "layer_normalization_6",
+        "dense_4",
+        "dense_12",
+        "dense_5",
+        "dense_13",
+        "dense_6",
+        "dense_14",
+        "dropout_1",
+        "dropout_3",
+        "add_1",
+        "add_3",
+        "layer_normalization_3",
+        "layer_normalization_7",
+        "dense_7",
+        "dense_15",
+        "reshape",
+        "reshape_1",
+        "lambda_1",
+        "lambda_3",
+        "tf.linalg.matmul",
+        "tf.linalg.matmul_3",
+        "tf.linalg.matmul_1",
+        "tf.linalg.matmul_4",
+        "tf.linalg.matmul_2",
+        "tf.linalg.matmul_5",
+        "flatten_2",
+        "flatten_3",
+        "concatenate_2",
+        "dense_16",
+        "dropout_4",
+        "layer_normalization_8",
+        "dense_17",
+        "dense_18",
+        "dense_19",
+        "dropout_5",
+        "add_4",
+        "layer_normalization_9",
+        "layer_normalization_10",
+        "dense_20",
+        "dense_21",
+        "dense_22",
+        "dropout_6",
+        "add_5",
+        "layer_normalization_11",
+        "dense_23"
+      ]
+    }
+  },
+  "train": {
+    "lr_energy": {
+      "start_weights": "model_lr_energy.npz",
+      "constants": {
+        "GRID_SIZE": 1.0,
+        "MAX_LOCAL_LEVEL": 2,
+        "CUT_OFF": 3.7071067811865475,
+        "INNER_CUT_OFF": 3.5071067811865473,
+        "MAX_ATOM_ELEMENTS": 100,
+        "use_charge_number": true,
+        "sort_matrix": false,
+        "SHUFFLE_BUFFER_SIZE": 1,
+        "n_max_local": 10,
+        "n_max_long_range": 20,
+        "predict_only_energy": true,
+        "use_long_range": true,
+        "activation": "elu"
+      },
+      "hyperparameters": {
+        "M1_local": 10,
+        "M2_local": 4,
+        "M1_long": 20,
+        "M2_long": 1,
+        "embedding_dims": [
+          16,
+          32,
+          32
+        ],
+        "initial_learning_rate": 0.001,
+        "lr_decay_steps": 20,
+        "decay_rate": 0.97,
+        "decay_steps": 7500.0,
+        "epochs": 1,
+        "p_energy_start": 1,
+        "p_energy_limit": 1,
+        "p_force_start": 1,
+        "p_force_limit": 0
+      },
+      "steps": 48,
+      "energy_loss": 172.4803009033203,
+      "val_energy_loss": 4.245460510253906,
+      "final_loss": 4.245460510253906,
+      "final_loss_type": "float32",
+      "training_log": {
+        "header": [
+          "Epoch",
+          "Train Total Loss",
+          "Energy Loss",
+          "Force Loss",
+          "Val Total Loss",
+          "Val Energy Loss",
+          "Val Force Loss",
+          "P Energy",
+          "P Force"
+        ],
+        "rows": [
+          [
+            "0",
+            "nan",
+            "172.4803009033203",
+            "nan",
+            "nan",
+            "4.245460510253906",
+            "nan",
+            "1",
+            "1"
+          ]
+        ]
+      },
+      "checkpoint_files": [
+        "model_epoch_0.h5",
+        "training_log.csv"
+      ],
+      "dropout_active": false,
+      "note": "model(...) is called without training=True in train_step (B02): dropout is off"
+    }
+  },
+  "eval": {
+    "lr_energy": {
+      "path": "evaluate_model_h5",
+      "mae": 1.5624459981918335,
+      "test_size": 6
+    }
+  },
+  "files": {
+    "golden/model_lr_energy.npz": {
+      "sha256": "3f58961fc4042cdc0cb8593e2d576b7cbcba4025a540c3f8f527d1347eec9a7e",
+      "bytes": 619890
+    },
+    "golden/model_local_energy.npz": {
+      "sha256": "52dd3f4530380c350d29bc3af51078d5bf6e156ff9bbb9f005cad4201e6f86b0",
+      "bytes": 421062
+    },
+    "golden/model_lr_forces.npz": {
+      "sha256": "540602d6d23f927a756592b4e013df5c9009022d57874beb50faaa4bac383621",
+      "bytes": 622481
+    },
+    "golden/train_lr_energy.npz": {
+      "sha256": "701b4dfd052c28d5c9d4028ffa82e10f09e1e1986bf80cb80135605b2e40aec8",
+      "bytes": 600710
+    },
+    "golden/eval_lr_energy.json": {
+      "sha256": "208e6a01ad55d74089a0fc14220700f90dffc6719a1cb265cf665dc6921dabe4",
+      "bytes": 706
+    },
+    "golden/schedules.json": {
+      "sha256": "caa64271b91b46c9f355e1971b55716d4cf3c8017459aa0fd90508cf896da984",
+      "bytes": 2378
+    }
+  }
+}

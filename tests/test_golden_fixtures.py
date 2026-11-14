@@ -46,7 +46,7 @@ def test_manifest_lists_all_golden_files() -> None:
 
 def test_fixture_size_below_limit() -> None:
     total = sum(p.stat().st_size for p in fx.fixtures_dir().rglob("*") if p.is_file())
-    assert total < 3 * 1024 * 1024
+    assert total < 5 * 1024 * 1024
 
 
 def test_golden_configs() -> None:
