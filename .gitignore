@@ -166,3 +166,13 @@ Datasets
 
 # Checkpoints
 Checkpoints
+
+# lrmlp: project venv, local data and run outputs
+.venv/
+data/
+runs/
+benchmarks/results/tmp/
+
+# Model weights are artefacts, except the committed test fixtures
+*.weights.h5
+!tests/fixtures/**/*.weights.h5

@@ -1,0 +1,97 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "long-range-ml-potential"
+dynamic = ["version"]
+description = "Machine learning potentials with long-range interaction (master's thesis code)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "tensorflow==2.21.0",
+    "numpy>=1.26.4,<2",
+    "tqdm>=4.62.3",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib==3.8.4"]
+tune = ["tensorboard==2.21.0"]
+legacy = ["pandas==2.1.4", "tf-keras==2.21.0"]
+dev = ["pytest==9.2.0", "pytest-cov==7.1.0", "ruff==0.17.5", "mypy==2.4.1"]
+
+[project.scripts]
+lrmlp = "lrmlp.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "lrmlp.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lrmlp = ["py.typed"]
+
+# --------------------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    ".overhaul",
+    "build",
+    "dist",
+    "Neural-Network",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "D", "TID"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+"benchmarks/**" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"tensorflow.keras".msg = "use `keras` (Keras 3)"
+"tf_keras".msg = "use `keras` (Keras 3)"
+
+# --------------------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "lrmlp.*"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["tensorflow.*", "keras.*", "h5py.*", "matplotlib.*", "tensorboard.*"]
+ignore_missing_imports = true
+
+# --------------------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: long-running end-to-end tests (run in CI only on push to main)",
+    "golden: regression tests against golden fixtures generated from the legacy code",
+    "legacy_env: needs TF_USE_LEGACY_KERAS=1 and the legacy code (skipped unless LRMLP_LEGACY_ENV=1)",
+]
+filterwarnings = ["default"]
+
+# --------------------------------------------------------------------------- coverage
+[tool.coverage.run]
+source = ["lrmlp"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
