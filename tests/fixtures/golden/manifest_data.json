@@ -1,0 +1,256 @@
+{
+  "generator": "tests/golden/generate_data_golden.py",
+  "generator_version": 1,
+  "legacy_ref": "9413bfd",
+  "legacy_commit": "9413bfd17130166dca96f995b66c358019c6b35a",
+  "versions": {
+    "python": "3.12.10",
+    "numpy": "1.26.4",
+    "pandas": "2.1.4",
+    "tensorflow": "2.21.0",
+    "tf_keras": "2.21.0"
+  },
+  "configs": {
+    "G-A": {
+      "GRID_SIZE": 1.0,
+      "MAX_LOCAL_LEVEL": 6,
+      "CUT_OFF": 7.707106781186548,
+      "INNER_CUT_OFF": 7.507106781186548,
+      "MAX_ATOM_ELEMENTS": 100,
+      "use_charge_number": true,
+      "sort_matrix": false,
+      "SHUFFLE_BUFFER_SIZE": 1000,
+      "n_max_local": 86,
+      "n_max_long_range": 28,
+      "predict_only_energy": true,
+      "use_long_range": true
+    },
+    "G-B": {
+      "GRID_SIZE": 1.0,
+      "MAX_LOCAL_LEVEL": 2,
+      "CUT_OFF": 3.7071067811865475,
+      "INNER_CUT_OFF": 3.5071067811865473,
+      "MAX_ATOM_ELEMENTS": 100,
+      "use_charge_number": true,
+      "sort_matrix": false,
+      "SHUFFLE_BUFFER_SIZE": 1000,
+      "n_max_local": 86,
+      "n_max_long_range": 28,
+      "predict_only_energy": true,
+      "use_long_range": true
+    },
+    "G-C": {
+      "GRID_SIZE": 2.0,
+      "MAX_LOCAL_LEVEL": 4,
+      "CUT_OFF": 11.414213562373096,
+      "INNER_CUT_OFF": 11.214213562373097,
+      "MAX_ATOM_ELEMENTS": 100,
+      "use_charge_number": true,
+      "sort_matrix": false,
+      "SHUFFLE_BUFFER_SIZE": 1000,
+      "n_max_local": 86,
+      "n_max_long_range": 28,
+      "predict_only_energy": true,
+      "use_long_range": true
+    }
+  },
+  "inputs": {
+    "synthetic_small.npz": {
+      "generator": "aspirin_like",
+      "n_frames": 60,
+      "seed": 0
+    },
+    "stachyose_like.npz": {
+      "generator": "stachyose_like",
+      "n_frames": 5,
+      "seed": 1
+    },
+    "edge_cases.npz": {
+      "generator": "edge_cases",
+      "cases": [
+        "level_lmax2_within_rc",
+        "dropped_pairs",
+        "partial_cell",
+        "single_cell",
+        "no_long_range",
+        "cell_boundary",
+        "gb_assignment",
+        "multi_element"
+      ]
+    }
+  },
+  "descriptors": {
+    "GA_aspirin": {
+      "config": "G-A",
+      "source": "synthetic_small.npz",
+      "sort_matrix": false,
+      "n_frames": 10,
+      "n_atoms": 210,
+      "local_rows": 3160,
+      "long_range_rows": 670,
+      "n_max": [
+        20,
+        11
+      ],
+      "dropped_pairs": 185,
+      "centroid_in_rc_pairs": 2,
+      "reduced_pairs": 124
+    },
+    "GB_aspirin": {
+      "config": "G-B",
+      "source": "synthetic_small.npz",
+      "sort_matrix": false,
+      "n_frames": 10,
+      "n_atoms": 210,
+      "local_rows": 664,
+      "long_range_rows": 3514,
+      "n_max": [
+        9,
+        20
+      ],
+      "dropped_pairs": 11,
+      "centroid_in_rc_pairs": 21,
+      "reduced_pairs": 175
+    },
+    "GB_aspirin_sorted": {
+      "config": "G-B",
+      "source": "synthetic_small.npz",
+      "sort_matrix": true,
+      "n_frames": 10,
+      "n_atoms": 210,
+      "local_rows": 664,
+      "long_range_rows": 3514,
+      "n_max": [
+        9,
+        20
+      ],
+      "dropped_pairs": 11,
+      "centroid_in_rc_pairs": 21,
+      "reduced_pairs": 175
+    },
+    "GA_edge": {
+      "config": "G-A",
+      "source": "edge_cases.npz",
+      "sort_matrix": false,
+      "n_frames": 8,
+      "n_atoms": 34,
+      "local_rows": 68,
+      "long_range_rows": 50,
+      "n_max": [
+        5,
+        6
+      ],
+      "dropped_pairs": 4,
+      "centroid_in_rc_pairs": 1,
+      "reduced_pairs": 2
+    },
+    "GB_edge": {
+      "config": "G-B",
+      "source": "edge_cases.npz",
+      "sort_matrix": false,
+      "n_frames": 8,
+      "n_atoms": 34,
+      "local_rows": 36,
+      "long_range_rows": 77,
+      "n_max": [
+        3,
+        6
+      ],
+      "dropped_pairs": 3,
+      "centroid_in_rc_pairs": 1,
+      "reduced_pairs": 1
+    },
+    "GC_stachyose": {
+      "config": "G-C",
+      "source": "stachyose_like.npz",
+      "sort_matrix": false,
+      "n_frames": 3,
+      "n_atoms": 261,
+      "local_rows": 12510,
+      "long_range_rows": 8670,
+      "n_max": [
+        83,
+        57
+      ],
+      "dropped_pairs": 526,
+      "centroid_in_rc_pairs": 43,
+      "reduced_pairs": 1689
+    }
+  },
+  "datasets": {
+    "GA": {
+      "config": "G-A",
+      "source": "synthetic_small.npz",
+      "val_split": 0.1,
+      "test_split": 0.1,
+      "random_state": 42,
+      "splits": {
+        "train": 48,
+        "val": 6,
+        "test": 6
+      },
+      "n_max_local": 20,
+      "n_max_long_range": 11
+    },
+    "GB": {
+      "config": "G-B",
+      "source": "synthetic_small.npz",
+      "val_split": 0.1,
+      "test_split": 0.1,
+      "random_state": 42,
+      "splits": {
+        "train": 48,
+        "val": 6,
+        "test": 6
+      },
+      "n_max_local": 10,
+      "n_max_long_range": 20
+    }
+  },
+  "files": {
+    "edge_cases.npz": {
+      "sha256": "39239d88252c6339c6300732510d7b7c1c431b1e45ec81c66a8213c124984b0f",
+      "bytes": 3353
+    },
+    "golden/data_dataset_GA.npz": {
+      "sha256": "4fe4931b5c4c1242d5136a5bd6a3d55e72028550cd1e6baad7b9928ef87dee32",
+      "bytes": 339117
+    },
+    "golden/data_dataset_GB.npz": {
+      "sha256": "8d33c2c8f196c22baead948221fe7d6d31040d8d9ec1d144fb5a94941d798701",
+      "bytes": 399701
+    },
+    "golden/data_descriptors_GA_aspirin.npz": {
+      "sha256": "c0632c64399a4fe52c1592c928f7becdd868ae670ea97c42e72dbd0ca1cc730d",
+      "bytes": 104128
+    },
+    "golden/data_descriptors_GA_edge.npz": {
+      "sha256": "9555cf71ec8da32d28ba9ba2f18568f19e48a1b667c2b4caebefd8c440d9e2bd",
+      "bytes": 19361
+    },
+    "golden/data_descriptors_GB_aspirin.npz": {
+      "sha256": "2940a9c5783f83fc78cb6e19edda7149532675e817120414a7466951cb6c8d66",
+      "bytes": 118176
+    },
+    "golden/data_descriptors_GB_aspirin_sorted.npz": {
+      "sha256": "94689aba94e313f10527aea0588ec7ddc69dcd0154619faf3ad540993e631194",
+      "bytes": 118166
+    },
+    "golden/data_descriptors_GB_edge.npz": {
+      "sha256": "a762ce1694ccd9d8e67b4d11f17d2bfca88b819fa399b6c000e3648f5d2f70a8",
+      "bytes": 19564
+    },
+    "golden/data_descriptors_GC_stachyose.npz": {
+      "sha256": "999d7ea729260c61dd3e01bafb6ca4117cc838003c2d0e0d5e64f9baaf15caf1",
+      "bytes": 591377
+    },
+    "stachyose_like.npz": {
+      "sha256": "9012bc627b22cff407447dbe2636bc2d7499af96f4097e31736bae6beef05643",
+      "bytes": 14512
+    },
+    "synthetic_small.npz": {
+      "sha256": "401a824f9ca807a7dd42f77b0d721c5276761042bb8b29e54dede43d1efc9e22",
+      "bytes": 40184
+    }
+  }
+}
