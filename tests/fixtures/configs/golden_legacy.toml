@@ -1,0 +1,47 @@
+# Golden legacy model M-1 (tests/golden, task T03): the legacy code path on the
+# synthetic fixture. Training with this profile must reproduce the golden outputs.
+# Relative paths are resolved relative to this file.
+
+name = "golden_legacy"
+
+[grid]
+grid_size = 1.0
+max_local_level = 2
+assignment = "legacy"
+sort_neighbours = false
+
+[data]
+sources = ["../synthetic_small.npz"]
+n_samples_per_source = "all"
+val_fraction = 0.1
+test_fraction = 0.1
+split_seed = 42
+output_dir = "../../../data/processed/golden_legacy"
+
+[model]
+activation = "elu"
+embedding_dims = [16, 32, 32]
+fitting_width = 128
+fitting_res_blocks = [128, 128]
+dropout_rate = 0.0
+k1_local = "auto"
+k1_long = "auto"
+k2_local = 4
+k2_long = 1
+use_long_range = true
+predict_forces = false
+
+[train]
+epochs = 1
+learning_rate = 1e-3
+lr_decay_steps = 20
+lr_decay_rate = 0.97
+lr_staircase = true
+shuffle_buffer = 1        # no shuffling
+p_energy_start = 1.0
+p_energy_limit = 1.0
+p_force_start = 1.0
+p_force_limit = 0.0
+loss_weight_decay_steps = 7.5e3
+loss_weight_decay_rate = 0.97
+run_root = "../../../runs"

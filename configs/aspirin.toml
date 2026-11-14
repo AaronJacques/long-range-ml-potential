@@ -1,0 +1,48 @@
+# Aspirin preset of the thesis "Machine Learning Potentials with Long Range
+# Interaction".
+#
+# Source: Tab. 5.1 (grid) and Tab. 5.2 (model, training) of the thesis, p. 52.
+# N_max^loc / N_max^long = 20/4 is not set here; it is read from the dataset.
+# Fields that are not set take the thesis defaults of `lrmlp.config`.
+# Deviations between the legacy code and the thesis (F1-F3, e.g. embedding and
+# fitting widths) are documented in docs/methodology.md.
+#
+# Relative paths are resolved relative to this file.
+
+name = "aspirin"
+
+[grid]
+grid_size = 1.0          # Δg in Å (Tab. 5.1)
+max_local_level = 6       # l_max (Tab. 5.1); r_c = (l_max + 1 + sqrt(0.5)) * Δg
+inner_cutoff_offset = 0.2   # r_cs = r_c - 0.2 Å (Tab. 5.1)
+assignment = "thesis"
+
+[data]
+# sGDML dataset [16] of the thesis; place the file here.
+sources = ["../data/raw/aspirin.npz"]
+n_samples_per_source = 65000  # at most 65 000 samples (p. 40)
+val_fraction = 0.1          # 80/10/10 split (p. 40)
+test_fraction = 0.1
+split_seed = 42
+output_dir = "../data/processed/aspirin"
+
+[model]
+activation = "elu"
+embedding_dims = [64, 128, 128, 256]
+fitting_width = 128
+fitting_res_blocks = [128, 128, 128]
+dropout_rate = 0.2
+k1_local = "auto"  # K1 loc (Tab. 5.2); "auto" = N_max of the dataset
+k1_long = "auto"   # K1 long (Tab. 5.2)
+k2_local = 4                # K2 loc (Tab. 5.2)
+k2_long = 1                 # K2 long (Tab. 5.2)
+use_long_range = true
+predict_forces = false
+
+[train]
+epochs = 200             # Tab. 5.2
+learning_rate = 1e-4     # η_init (Tab. 5.2)
+lr_decay_steps = 2.08e5  # s (Eq. 4.22, Tab. 5.2)
+lr_decay_rate = 0.97        # Eq. 4.22
+lr_staircase = true
+run_root = "../runs"

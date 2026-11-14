@@ -1,0 +1,52 @@
+# Stachyose preset of the thesis "Machine Learning Potentials with Long Range
+# Interaction".
+#
+# Source: Tab. 5.1 (grid) and Tab. 5.2 (model, training) of the thesis, p. 52.
+# N_max^loc / N_max^long = 86/28 is not set here; it is read from the dataset.
+# Fields that are not set take the thesis defaults of `lrmlp.config`.
+# Deviations between the legacy code and the thesis (F1-F3, e.g. embedding and
+# fitting widths) are documented in docs/methodology.md.
+#
+# Stachyose is the one molecule with K1 < N_max: Tab. 5.2 gives K1 = 30/6 for
+# N_max = 86/28, so Tab. 5.2 wins over the sentence "N_max = K1 always chosen" (p. 52).
+# All 27 272 frames of the dataset are used.
+#
+# Relative paths are resolved relative to this file.
+
+name = "stachyose"
+
+[grid]
+grid_size = 2.0          # Δg in Å (Tab. 5.1)
+max_local_level = 4       # l_max (Tab. 5.1); r_c = (l_max + 1 + sqrt(0.5)) * Δg
+inner_cutoff_offset = 0.2   # r_cs = r_c - 0.2 Å (Tab. 5.1)
+assignment = "thesis"
+
+[data]
+# sGDML dataset [16] of the thesis; place the file here.
+sources = ["../data/raw/stachyose.npz"]
+n_samples_per_source = "all"  # all 27 272 frames
+val_fraction = 0.1          # 80/10/10 split (p. 40)
+test_fraction = 0.1
+split_seed = 42
+output_dir = "../data/processed/stachyose"
+
+[model]
+activation = "elu"
+embedding_dims = [64, 128, 128, 256]
+fitting_width = 128
+fitting_res_blocks = [128, 128, 128]
+dropout_rate = 0.2
+k1_local = 30      # K1 loc (Tab. 5.2); "auto" = N_max of the dataset
+k1_long = 6        # K1 long (Tab. 5.2)
+k2_local = 4                # K2 loc (Tab. 5.2)
+k2_long = 2                 # K2 long (Tab. 5.2)
+use_long_range = true
+predict_forces = false
+
+[train]
+epochs = 130             # Tab. 5.2
+learning_rate = 5e-5     # η_init (Tab. 5.2)
+lr_decay_steps = 8.727e4 # s (Eq. 4.22, Tab. 5.2)
+lr_decay_rate = 0.97        # Eq. 4.22
+lr_staircase = true
+run_root = "../runs"

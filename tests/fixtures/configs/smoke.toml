@@ -1,0 +1,33 @@
+# Smoke-test configuration: a tiny thesis-mode model on the synthetic fixture.
+# Used by the end-to-end tests and the checkpoint commands; not a thesis experiment.
+# Relative paths are resolved relative to this file.
+
+name = "smoke"
+
+[grid]
+grid_size = 1.0
+max_local_level = 2
+assignment = "thesis"
+
+[data]
+sources = ["../synthetic_small.npz"]
+output_dir = "../../../data/processed/smoke"
+
+[model]
+embedding_dims = [16, 32]
+fitting_width = 32
+fitting_res_blocks = [32]
+dropout_rate = 0.2
+k1_local = "auto"
+k1_long = "auto"
+k2_local = 4
+k2_long = 1
+
+[train]
+epochs = 2
+learning_rate = 1e-3
+lr_decay_steps = 20
+shuffle_buffer = 16
+seed = 42
+log_every_steps = 10
+run_root = "../../../runs"

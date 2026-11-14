@@ -1,0 +1,86 @@
+# Legacy profile: reproduces Neural-Network/Constants.py at commit 9413bfd (HEAD of
+# the legacy code) instead of the thesis.
+#
+# Constants.py@9413bfd is a mixed state: the grid of Aspirin (Δg 1, l_max 6, as in
+# the `Dataset.py` main block, which prepares md17_aspirin with 65 000 frames), but
+# the K values and the decay steps of Stachyose (Tab. 5.1/5.2 of the thesis).
+# N_max is read from the dataset instead of the hard-coded 86/28 (bug B08).
+# The deviations from the thesis (F1-F3: cell-based assignment, embedding and
+# fitting widths, inactive dropout) are documented in docs/methodology.md.
+#
+# Mapping of the legacy names to the new fields:
+#   Dataset.GRID_SIZE                 -> grid.grid_size
+#   Dataset.MAX_LOCAL_LEVEL           -> grid.max_local_level
+#   Dataset.CUT_OFF                   -> derived: grid.cutoff
+#   Dataset.INNER_CUT_OFF             -> derived: grid.inner_cutoff (grid.inner_cutoff_offset)
+#   Dataset.MAX_ATOM_ELEMENTS         -> grid.max_atomic_number
+#   Dataset.sort_matrix               -> grid.sort_neighbours
+#   Dataset.py:310-356 (cell rule)    -> grid.assignment = "legacy"
+#   create_dataset(paths, ...)        -> data.sources
+#   create_dataset(n_samples_per)     -> data.n_samples_per_source
+#   create_dataset(val/test_split)    -> data.val_fraction, data.test_fraction
+#   Dataset.FOLDER / save_folder      -> data.output_dir
+#   Dataset.SHUFFLE_BUFFER_SIZE       -> train.shuffle_buffer
+#   Hyperparameters.initial_learning_rate -> train.learning_rate
+#   Hyperparameters.lr_decay_steps    -> train.lr_decay_steps
+#   Hyperparameters.decay_rate        -> train.lr_decay_rate and train.loss_weight_decay_rate
+#   Hyperparameters.decay_steps       -> train.loss_weight_decay_steps
+#   Hyperparameters.epochs            -> train.epochs
+#   Hyperparameters.p_*_start/limit   -> train.p_*_start/limit
+#   Hyperparameters.M1_local/M1_long  -> model.k1_local/model.k1_long
+#   Hyperparameters.M2_local/M2_long  -> model.k2_local/model.k2_long
+#   Hyperparameters.embedding_dims    -> model.embedding_dims
+#   Model.activation                  -> model.activation
+#   Model.n_max_local/n_max_long_range -> metadata.json of the dataset (not configurable)
+#   Model.predict_only_energy         -> not model.predict_forces
+#   Model.use_long_range              -> model.use_long_range
+#   Checkpoints folder (../Checkpoints) -> train.run_root
+#
+# Relative paths are resolved relative to this file.
+
+name = "legacy-head"
+
+[grid]
+grid_size = 1.0
+max_local_level = 6
+inner_cutoff_offset = 0.2
+max_atomic_number = 100
+assignment = "legacy"
+sort_neighbours = false
+
+[data]
+# sGDML dataset [16] of the thesis; place the file here.
+sources = ["../data/raw/aspirin.npz"]
+n_samples_per_source = 65000
+val_fraction = 0.1
+test_fraction = 0.1
+split_seed = 42
+output_dir = "../data/processed/legacy-head"
+
+[model]
+activation = "elu"
+embedding_dims = [64, 128, 128, 128]
+fitting_width = 128
+fitting_res_blocks = [128, 128]
+dropout_rate = 0.0       # declared 0.2, but never active in the legacy code (B02)
+k1_local = 30
+k2_local = 4
+k1_long = 6
+k2_long = 2
+use_long_range = true
+predict_forces = false   # Model.predict_only_energy = True
+
+[train]
+epochs = 200
+learning_rate = 5e-5
+lr_decay_steps = 8.727e4
+lr_decay_rate = 0.97
+lr_staircase = true
+p_energy_start = 1.0
+p_energy_limit = 1.0
+p_force_start = 1.0
+p_force_limit = 0.0
+loss_weight_decay_steps = 7.5e3
+loss_weight_decay_rate = 0.97
+shuffle_buffer = 1000
+run_root = "../runs"
