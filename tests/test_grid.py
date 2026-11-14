@@ -447,6 +447,29 @@ def test_cell_aggregates_rejects_mismatch() -> None:
         cell_aggregates(pos[:1], [1], part, 100)
     with pytest.raises(ValueError):
         cell_aggregates(pos, [1, 6], part, 0)
+    with pytest.raises(ValueError, match="species must lie"):
+        cell_aggregates(pos, [1, 6], part, 100, species=[1, 101])
+    with pytest.raises(ValueError, match="distinct"):
+        cell_aggregates(pos, [1, 6], part, 100, species=[6, 6])
+
+
+@pytest.mark.parametrize("mode", ["thesis", "legacy"])
+def test_cell_aggregates_species_columns(mode: str) -> None:
+    """C2-F19: the compact counts equal the selected columns of the full m_max layout."""
+    rng = np.random.default_rng(7)
+    pos = np.round(rng.uniform(-8.0, 8.0, size=(40, 3)) * 64.0) / 64.0
+    z = rng.choice([1, 6, 7, 8, 101], size=40)
+    grid = GridConfig(grid_size=1.0, max_local_level=2, assignment=mode)  # type: ignore[arg-type]
+    part = partition(pos, z, grid)
+    full = cell_aggregates(pos, z, part, 100)
+    for species in ([1, 6, 7, 8], [8, 1], [6], []):
+        compact = cell_aggregates(pos, z, part, 100, species=species)
+        assert compact.counts.shape == (*full.counts.shape[:2], len(species))
+        np.testing.assert_array_equal(
+            compact.counts, full.counts[:, :, np.asarray(species, dtype=np.int64) - 1]
+        )
+        np.testing.assert_array_equal(compact.present, full.present)
+        np.testing.assert_array_equal(compact.center_of_mass, full.center_of_mass)
 
 
 def test_dataclasses_are_frozen() -> None:

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import os
+import stat
 import subprocess
 import sys
 import textwrap
+import tracemalloc
 from pathlib import Path
 from typing import Any
 
@@ -355,8 +359,15 @@ def test_long_range_counts_size(smoke: DescriptorDataset) -> None:
         split = smoke[name]
         counts = split.arrays["long_range_counts"]
         assert counts.nbytes == split.n_atoms * smoke.n_max_long_range * n_species
-        legacy = split.n_atoms * smoke.n_max_long_range * 101 * 4
-        assert counts.nbytes * 4 * 101 // n_species == legacy
+        path = split.path / "long_range_counts.npy"
+        with path.open("rb") as fh:
+            version = np.lib.format.read_magic(fh)
+            if version == (1, 0):
+                np.lib.format.read_array_header_1_0(fh)
+            else:
+                np.lib.format.read_array_header_2_0(fh)
+            header = fh.tell()
+        assert path.stat().st_size - header == counts.nbytes
 
 
 # --------------------------------------------------------------------------- 6.-8. tf.data
@@ -506,3 +517,124 @@ def test_no_pandas_import(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "ok"
+
+
+# --------------------------------------------------------------------------- C2 fixes
+
+
+@pytest.mark.parametrize("umask", [0o022, 0o027])
+def test_dataset_directory_has_default_mode(
+    smoke_config: ExperimentConfig, tmp_path: Path, umask: int
+) -> None:
+    """C2-F16: the dataset directory gets ``0o777 & ~umask`` like a plain mkdir, not 0700."""
+    previous = os.umask(umask)
+    try:
+        target = build_dataset(smoke_config, output_dir=tmp_path / "ds", n_workers=1)
+        plain = tmp_path / "plain"
+        plain.mkdir()
+        assert os.umask(umask) == umask
+    finally:
+        os.umask(previous)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o777 & ~umask
+    assert stat.S_IMODE(target.stat().st_mode) == stat.S_IMODE(plain.stat().st_mode)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["ds", "plain"]
+
+
+@pytest.mark.parametrize("n_workers", [1, 2])
+def test_frame_errors_name_source_and_frame(
+    smoke_config: ExperimentConfig, tmp_path: Path, n_workers: int
+) -> None:
+    """C2-F17: a defective frame is reported with its source and frame index."""
+    raw = dict(_raw())
+    positions = raw["R"].copy()
+    positions[37, 5] = positions[37, 4]  # two coincident atoms (B12)
+    raw["R"] = positions
+    bad = tmp_path / "bad.npz"
+    np.savez(bad, **raw)
+    config = smoke_config.with_overrides(
+        {"data.sources": [str(FIXTURES / "synthetic_small.npz"), str(bad)]}
+    )
+    expected = rf"bad\.npz: frame 37 \(global frame {60 + 37}\): .*coincide"
+    with pytest.raises(ValueError, match=expected):
+        build_dataset(config, output_dir=tmp_path / "ds", n_workers=n_workers)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["bad.npz"]
+
+
+def _random_ragged(rng: np.random.Generator, atoms: int, n_species: int) -> Any:
+    from lrmlp.dataset import _Ragged
+
+    n_local = rng.integers(0, 6, size=atoms)
+    n_long = rng.integers(0, 4, size=atoms)
+    k, m = int(n_local.sum()), int(n_long.sum())
+    return _Ragged(
+        local_matrix=rng.normal(size=(k, 4)).astype(np.float32),
+        local_numbers=rng.integers(0, 255, size=(k, 2), dtype=np.uint8),
+        n_local=n_local.astype(np.int64),
+        long_range_matrix=rng.normal(size=(m, 4)).astype(np.float32),
+        long_range_counts=rng.integers(0, 255, size=(m, n_species), dtype=np.uint8),
+        n_long=n_long.astype(np.int64),
+    )
+
+
+def _field_arrays(ragged: Any) -> list[np.ndarray]:
+    return [getattr(ragged, f.name) for f in dataclasses.fields(ragged)]
+
+
+def test_ragged_concatenate_equals_numpy_concatenate() -> None:
+    """C2-F18: the preallocated merge gives exactly ``np.concatenate`` of the parts."""
+    from lrmlp.dataset import _Ragged
+
+    rng = np.random.default_rng(3)
+    parts = [_random_ragged(rng, atoms, 3) for atoms in (5, 0, 17, 1, 40)]
+    expected = {
+        f.name: np.concatenate([getattr(p, f.name) for p in parts])
+        for f in dataclasses.fields(_Ragged)
+    }
+    merged = _Ragged.concatenate(parts, 3)
+    assert parts == []  # the parts are consumed
+    for name, value in expected.items():
+        array = getattr(merged, name)
+        assert array.dtype == value.dtype and array.shape == value.shape, name
+        assert array.tobytes() == value.tobytes(), name
+    empty = _Ragged.concatenate([], 3)
+    assert empty.long_range_counts.shape == (0, 3) and empty.n_local.dtype == np.int64
+
+
+def test_ragged_concatenate_does_not_double_memory() -> None:
+    """C2-F18: merging allocates at most the largest field on top of the parts."""
+    from lrmlp.dataset import _Ragged
+
+    rng = np.random.default_rng(5)
+    tracemalloc.start()  # before the parts exist, so that releasing them is seen
+    try:
+        parts = [_random_ragged(rng, 2000, 3) for _ in range(20)]
+        total = sum(sum(a.nbytes for a in _field_arrays(p)) for p in parts)
+        largest = max(
+            sum(getattr(p, name).nbytes for p in parts)
+            for name in ("local_matrix", "local_numbers", "long_range_matrix", "long_range_counts")
+        )
+        tracemalloc.reset_peak()
+        base, _ = tracemalloc.get_traced_memory()
+        merged = _Ragged.concatenate(parts, 3)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert sum(a.nbytes for a in _field_arrays(merged)) == total
+    # np.concatenate of all fields would need ``total`` extra bytes at the peak.
+    assert peak - base < largest + 0.1 * total < total
+
+
+def test_mixed_dataset_equals_direct_descriptors(mixed: Path) -> None:
+    """C2-F18: two sources, two workers; every stored molecule equals the direct result."""
+    ds = load_dataset(mixed)
+    raws = {0: _raw("synthetic_small"), 1: _raw("stachyose_like")}
+    for name in SPLITS:
+        split = ds[name]
+        for k, frame in enumerate(split.sample_index):
+            raw, f = (raws[0], frame) if frame < 10 else (raws[1], frame - 10)
+            desc = compute_descriptors(raw["R"][f], raw["z"], ds.grid)
+            expected = pad_descriptors(desc, ds.n_max_local, ds.n_max_long_range)
+            mol = split.molecule(k)
+            for key, value in expected.items():
+                assert mol[key].dtype == value.dtype, key
+                np.testing.assert_array_equal(mol[key], value, err_msg=f"{name}[{k}] {key}")

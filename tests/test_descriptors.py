@@ -538,3 +538,18 @@ def test_sort_neighbours_with_ties() -> None:
 def test_no_tensorflow_import() -> None:
     code = "import sys, lrmlp.descriptors; assert 'tensorflow' not in sys.modules"
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+@pytest.mark.parametrize("mode", MODES)
+@pytest.mark.parametrize("sort", [False, True])
+def test_species_counts_are_columns_of_full_counts(mode: str, sort: bool) -> None:
+    """C2-F19: ``species=`` only selects count columns; all other rows are unchanged."""
+    rng = np.random.default_rng(11)
+    pos, z = _random_molecule(rng, 30, BOX["G-B"])
+    grid = _grid("G-B", mode, sort_neighbours=sort)
+    species = np.unique(z)
+    full = compute_descriptors(pos, z, grid)
+    compact = compute_descriptors(pos, z, grid, species=species)
+    np.testing.assert_array_equal(compact.long_range_counts, full.long_range_counts[:, species - 1])
+    for name in ("local_matrix", "local_numbers", "n_local", "long_range_matrix", "n_long"):
+        np.testing.assert_array_equal(getattr(compact, name), getattr(full, name), err_msg=name)

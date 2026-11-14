@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import stat
 from datetime import datetime
 from pathlib import Path
@@ -72,6 +73,20 @@ def test_write_json_uses_default_file_mode(tmp_path: Path) -> None:
     plain.write_text("x", encoding="utf-8")
     path = write_json(tmp_path / "config.json", {"a": 1})
     assert stat.S_IMODE(path.stat().st_mode) == stat.S_IMODE(plain.stat().st_mode)
+
+
+@pytest.mark.parametrize("umask", [0o077, 0o027])
+def test_write_json_follows_current_umask(tmp_path: Path, umask: int) -> None:
+    """C2-F15: the OS applies the umask at creation; the umask itself is not touched."""
+    previous = os.umask(umask)
+    try:
+        path = write_json(tmp_path / "best.json", {"epoch": 1})
+        assert os.umask(umask) == umask  # write_json left the umask unchanged
+    finally:
+        os.umask(previous)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o666 & ~umask
+    assert read_json(path) == {"epoch": 1}
+    assert [p.name for p in tmp_path.iterdir()] == ["best.json"]  # no temporary file left
 
 
 @pytest.mark.parametrize("name", ["", "a/b", "..", "a\\b"])

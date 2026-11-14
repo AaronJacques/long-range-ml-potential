@@ -13,7 +13,9 @@ Building (:func:`build_dataset`)
    sources before s (the legacy ``pd.concat(..., ignore_index=True)``).
 2. The descriptors of every frame (:func:`lrmlp.descriptors.compute_descriptors`)
    are computed in worker processes, in chunks of consecutive frames; the
-   result does not depend on the number of workers.
+   result does not depend on the number of workers. The workers are started
+   with ``"spawn"``, so scripts calling :func:`build_dataset` with more than one
+   worker need an ``if __name__ == "__main__":`` guard.
 3. N_max^local and N_max^long are the maxima over **all** frames, before the
    split (legacy behaviour, p. 44).
 4. The frames are split with :func:`split_indices` and every split is written
@@ -100,9 +102,9 @@ import logging
 import math
 import operator
 import os
+import secrets
 import shutil
 import sys
-import tempfile
 from collections.abc import Iterator, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -235,6 +237,9 @@ class _ChunkTask:
     numbers: IntArray  # (N,)
     grid: GridConfig
     species: IntArray  # (n_species,)
+    source: str  # trajectory path, for error messages
+    first_frame: int  # frame index of positions[0] within the source
+    frame_offset: int  # global frame index of frame 0 of the source
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,7 +254,13 @@ class _Ragged:
     n_long: IntArray  # (atoms,)
 
     @classmethod
-    def concatenate(cls, parts: Sequence[_Ragged], n_species: int) -> _Ragged:
+    def concatenate(cls, parts: list[_Ragged], n_species: int) -> _Ragged:
+        """Concatenate ``parts`` field by field; **empties** ``parts``.
+
+        Every field is copied into one preallocated array and the source arrays
+        are released as soon as they are copied, so the ragged data is not held
+        twice (the result equals :func:`numpy.concatenate` of the parts).
+        """
         if not parts:
             return cls(
                 np.zeros((0, 4), np.float32),
@@ -259,20 +270,50 @@ class _Ragged:
                 np.zeros((0, n_species), np.uint8),
                 np.zeros(0, np.int64),
             )
-        return cls(
-            *(np.concatenate([getattr(p, f.name) for p in parts]) for f in dataclasses.fields(cls))
-        )
+        names = [f.name for f in dataclasses.fields(cls)]
+        columns: dict[str, list[np.ndarray | None]] = {
+            name: [getattr(p, name) for p in parts] for name in names
+        }
+        parts.clear()
+        merged = {}
+        for name in names:
+            column = columns.pop(name)
+            first = column[0]
+            assert first is not None
+            total = sum(a.shape[0] for a in column if a is not None)
+            out = np.empty((total, *first.shape[1:]), dtype=first.dtype)
+            del first
+            lo = 0
+            for k, array in enumerate(column):
+                assert array is not None
+                out[lo : lo + array.shape[0]] = array
+                lo += array.shape[0]
+                column[k] = None
+                del array
+            merged[name] = out
+        return cls(**merged)
 
 
 def _chunk_descriptors(task: _ChunkTask) -> _Ragged:
-    """Descriptors of the frames of one task (runs in a worker process)."""
-    columns = task.species - 1
+    """Descriptors of the frames of one task (runs in a worker process).
+
+    A :class:`ValueError` of a frame is re-raised with the source path and the
+    frame index (within the source and global).
+    """
     parts = []
-    for positions in task.positions:
-        desc = compute_descriptors(positions, task.numbers, task.grid)
-        counts = desc.long_range_counts[:, columns]
-        if counts.size and counts.max() > _UINT8_MAX:
-            raise ValueError(f"a long-range cell holds more than {_UINT8_MAX} atoms of one element")
+    for k, positions in enumerate(task.positions):
+        try:
+            desc = compute_descriptors(positions, task.numbers, task.grid, species=task.species)
+            counts = desc.long_range_counts
+            if counts.size and counts.max() > _UINT8_MAX:
+                raise ValueError(
+                    f"a long-range cell holds more than {_UINT8_MAX} atoms of one element"
+                )
+        except ValueError as exc:
+            frame = task.first_frame + k
+            raise ValueError(
+                f"{task.source}: frame {frame} (global frame {task.frame_offset + frame}): {exc}"
+            ) from exc
         parts.append(
             _Ragged(
                 local_matrix=desc.local_matrix.astype(np.float32),
@@ -327,6 +368,22 @@ def _run_tasks(tasks: list[_ChunkTask], n_workers: int) -> list[_Ragged]:
         ProcessPoolExecutor(max_workers=n_workers, mp_context=get_context("spawn")) as pool,
     ):
         return list(pool.map(_chunk_descriptors, tasks))
+
+
+def _make_build_dir(target: Path) -> Path:
+    """Create an empty, uniquely named sibling of ``target`` for building.
+
+    Unlike :func:`tempfile.mkdtemp` (always ``0o700``) the directory is created
+    with mode ``0o777``, so the operating system applies the current umask and
+    the renamed dataset directory gets the permissions of a plain ``mkdir``.
+    """
+    while True:
+        tmp = target.with_name(f".{target.name}.building-{secrets.token_hex(8)}")
+        try:
+            tmp.mkdir(mode=0o777)
+        except FileExistsError:
+            continue
+        return tmp
 
 
 # --------------------------------------------------------------------------- building helpers
@@ -468,7 +525,10 @@ def build_dataset(
         Target directory; default ``config.data.output_dir``.
     n_workers : int or None
         Worker processes; default ``config.data.n_workers``, 0 = all CPUs, 1 =
-        no worker processes. The result does not depend on it.
+        no worker processes. The result does not depend on it. More than one
+        worker is started with the ``"spawn"`` method on every platform, so a
+        script that calls this function must guard the call with
+        ``if __name__ == "__main__":`` (otherwise every worker re-runs the script).
     overwrite : bool
         Replace an existing dataset directory. Without it an existing target is an
         error (legacy behaviour).
@@ -485,14 +545,16 @@ def build_dataset(
         neither a dataset directory nor empty.
     ValueError
         On invalid input data (see :func:`lrmlp.io.load_trajectory` and
-        :func:`lrmlp.descriptors.compute_descriptors`).
+        :func:`lrmlp.descriptors.compute_descriptors`); errors of a frame name the
+        source and the frame index.
 
     Notes
     -----
     The dataset is written to a temporary sibling directory and renamed at the
     end, so an interrupted build leaves no partial dataset behind. The ragged
     descriptors of all frames are held in memory between the two passes (compact
-    float32 / uint8, roughly the size of the written files).
+    float32 / uint8, roughly the size of the written files); they are merged
+    without holding a second copy.
     """
     data, grid = config.data, config.grid
     target = Path(output_dir if output_dir is not None else data.output_dir)  # type: ignore[arg-type]
@@ -511,9 +573,15 @@ def build_dataset(
     tasks: list[_ChunkTask] = []
     total_frames = sum(t.n_frames for t in trajectories)
     chunk = max(1, min(_MAX_CHUNK, math.ceil(total_frames / (4 * workers))))
-    for t in trajectories:
+    offset = 0
+    for src, t in zip(data.sources, trajectories, strict=True):
         for lo in range(0, t.n_frames, chunk):
-            tasks.append(_ChunkTask(t.positions[lo : lo + chunk], t.numbers, grid, species))
+            tasks.append(
+                _ChunkTask(
+                    t.positions[lo : lo + chunk], t.numbers, grid, species, str(src), lo, offset
+                )
+            )
+        offset += t.n_frames
     ragged = _Ragged.concatenate(_run_tasks(tasks, workers), species.shape[0])
     n_max_local = int(ragged.n_local.max()) if ragged.n_local.size else 0
     n_max_long_range = int(ragged.n_long.max()) if ragged.n_long.size else 0
@@ -550,7 +618,7 @@ def build_dataset(
         offset += t.n_frames
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path(tempfile.mkdtemp(prefix=f".{target.name}.building-", dir=target.parent))
+    tmp = _make_build_dir(target)
     try:
         split_info = {
             name: _write_split(

@@ -286,7 +286,11 @@ def _legacy_sort(values: FloatArray, counts: IntArray) -> IntArray:
 
 
 def compute_descriptors(
-    positions: npt.ArrayLike, numbers: npt.ArrayLike, grid: GridConfig
+    positions: npt.ArrayLike,
+    numbers: npt.ArrayLike,
+    grid: GridConfig,
+    *,
+    species: npt.ArrayLike | None = None,
 ) -> MoleculeDescriptors:
     """Build R̃_local, Z_i, R̃_long and the counts of F_i for every atom.
 
@@ -299,6 +303,12 @@ def compute_descriptors(
     grid : GridConfig
         Δg, l_max, r_c / r_cs, m_max, the assignment mode and
         ``sort_neighbours`` (see :mod:`lrmlp.grid`).
+    species : array_like of int, optional
+        Count only these distinct elements: ``long_range_counts[:, s]`` then
+        holds element ``species[s]`` (compact storage form, see
+        :func:`lrmlp.grid.cell_aggregates`). Such a result is **not** valid input
+        for :func:`pad_descriptors` or ``long_range_features``, which expect the
+        full m_max columns of the default.
 
     Returns
     -------
@@ -338,7 +348,7 @@ def compute_descriptors(
 
     # ---- long-range rows R̃_long and F_i (Eq. 4.12, 4.16-4.20)
     rel = pos - pos.min(axis=0)  # relative to g_000 (Eq. 4.11), see module docstring
-    agg = _grid.cell_aggregates(rel, z, part, grid.max_atomic_number)
+    agg = _grid.cell_aggregates(rel, z, part, grid.max_atomic_number, species)
     li, lc = np.nonzero(agg.present)
     order = _segment_order(li, agg.level[li, lc], lc)
     li, lc = li[order], lc[order]

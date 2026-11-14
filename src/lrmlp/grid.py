@@ -36,9 +36,9 @@ long-range cell of i, or is dropped:
 
 Geometry note
     The thesis (p. 42) states that all cells up to level l_max lie within r_c.
-    In 3D this does not hold: two atoms in cells on level l_max + 1 can be up to
-    √3·(l_max + 1)·Δg apart (≈ 12.1 Å for Δg = 1 Å, l_max = 6), which is larger
-    than r_c ≈ 7.71 Å. This is the origin of A02; the ``"thesis"`` mode does not
+    In 3D this does not hold: an atom in a cell on level ≤ l_max (a cell of G_i)
+    can be up to √3·(l_max + 1)·Δg away (≈ 12.1 Å for Δg = 1 Å, l_max = 6), which
+    is larger than r_c ≈ 7.71 Å. This is the origin of A02; the ``"thesis"`` mode does not
     depend on the assumption.
 
 Differences to the legacy code that do not change results for valid input: the
@@ -348,6 +348,7 @@ def cell_aggregates(
     numbers: npt.ArrayLike,
     partition: Partition,
     max_atomic_number: int,
+    species: npt.ArrayLike | None = None,
 ) -> CellAggregates:
     """Centre of mass and element counts of the long-range cells of every atom.
 
@@ -366,12 +367,19 @@ def cell_aggregates(
         Result of :func:`partition` for these positions.
     max_atomic_number : int
         Length m_max of the count vector (p. 42).
+    species : array_like of int, optional
+        Count only these distinct elements (1 ≤ Z ≤ ``max_atomic_number``):
+        ``counts[..., s]`` then holds element ``species[s]`` and has
+        ``len(species)`` columns instead of m_max. This is a compact form of the
+        same counts (``counts_full[..., species[s] - 1]``); the default is the
+        full m_max layout.
 
     Returns
     -------
     CellAggregates
         ``present``, the Z-weighted centre of mass (Eq. 4.12), the element counts
-        (index Z − 1, Z > ``max_atomic_number`` ignored) and the cell level.
+        (index Z − 1, Z > ``max_atomic_number`` ignored, or the ``species``
+        columns) and the cell level.
     """
     pos = _as_positions(positions)
     n = pos.shape[0]
@@ -395,11 +403,25 @@ def cell_aggregates(
     denominator = np.where(present, weight_sum, 1.0)[:, :, None]
     center_of_mass = np.where(present[:, :, None], numerator / denominator, 0.0)
 
-    # Counts per (cell, element) group, scattered into the dense (M, m_max) layout.
-    counts = np.zeros((n, m * max_atomic_number), dtype=np.int64)
-    counted = z <= max_atomic_number
+    # Counts per (cell, element) group, scattered into the dense (M, n_columns) layout.
+    if species is None:
+        n_columns = max_atomic_number
+        column = z - 1
+        counted = z <= max_atomic_number
+    else:
+        sp = np.asarray(species).astype(np.int64).reshape(-1)
+        if sp.size and (sp.min() < 1 or sp.max() > max_atomic_number):
+            raise ValueError(f"species must lie in 1 … {max_atomic_number}, got {sp.tolist()}")
+        if np.unique(sp).size != sp.size:
+            raise ValueError(f"species must be distinct, got {sp.tolist()}")
+        n_columns = sp.size
+        lookup = np.full(max(max_atomic_number, int(z.max(initial=0))) + 1, -1, dtype=np.int64)
+        lookup[sp] = np.arange(sp.size)
+        column = lookup[z]
+        counted = column >= 0
+    counts = np.zeros((n, m * n_columns), dtype=np.int64)
     if np.any(counted):
-        keys = partition.cell_of_atom[counted] * max_atomic_number + (z[counted] - 1)
+        keys = partition.cell_of_atom[counted] * n_columns + column[counted]
         groups, group_of_atom = np.unique(keys, return_inverse=True)
         group_one_hot = np.zeros((int(counted.sum()), groups.size), dtype=np.float64)
         group_one_hot[np.arange(group_one_hot.shape[0]), group_of_atom.reshape(-1)] = 1.0
@@ -409,6 +431,6 @@ def cell_aggregates(
     return CellAggregates(
         present=present,
         center_of_mass=center_of_mass,
-        counts=counts.reshape(n, m, max_atomic_number),
+        counts=counts.reshape(n, m, n_columns),
         level=partition.cell_levels.copy(),
     )
