@@ -56,6 +56,8 @@ import csv
 import dataclasses
 import logging
 import math
+import os
+import secrets
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -121,6 +123,12 @@ def log_columns(predict_forces: bool) -> tuple[str, ...]:
         molecule-energy errors in (kcal/mol)² (Eq. 4.21), ``*_force_mse`` mean squared
         force-component errors in (kcal/(mol·Å))²; ``*_loss`` is the optimised loss
         (equal to the energy MSE without forces, Eq. 4.10 with forces).
+        ``learning_rate`` is the Adam step size η(t) of Eq. 4.22 (dimensionless,
+        same unit as ``train.learning_rate``) at the **end** of the epoch, with
+        t = the number of optimizer steps taken so far: the rate of the next step,
+        not the rate(s) used during the epoch (with the stepwise decay these differ
+        whenever a decay boundary falls into the epoch). ``seconds`` is the wall
+        time of the epoch including validation.
     """
     return ENERGY_COLUMNS + FORCE_COLUMNS if predict_forces else ENERGY_COLUMNS
 
@@ -576,8 +584,24 @@ class Trainer:
             result["val_force_mse"] = float(self._val_metrics["force_mse"].result())
         return result
 
-    def _save_checkpoint(self, epoch: int, best_epoch: int) -> None:
-        self.model.save_weights(str(self.run.checkpoint_path(epoch)))
+    def _save_checkpoint(self, epoch: int) -> None:
+        """Write the checkpoint of ``epoch`` atomically (temporary file + ``os.replace``).
+
+        An interruption leaves either no checkpoint or a complete one, never a
+        partial file under the final name.
+        """
+        target = self.run.checkpoint_path(epoch)
+        # Keras requires the ".weights.h5" suffix; the leading dot keeps the file out
+        # of RunDirectory.list_checkpoints.
+        tmp = target.with_name(f".{secrets.token_hex(8)}.tmp.{target.name}")
+        try:
+            self.model.save_weights(str(tmp))
+            os.replace(tmp, target)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
+
+    def _prune_checkpoints(self, epoch: int, best_epoch: int) -> None:
         if self.config.train.checkpoints == "best_and_last":
             for old in self.run.list_checkpoints():
                 if old not in (epoch, best_epoch):
@@ -634,10 +658,13 @@ class Trainer:
                             f"training diverged in epoch {epoch}: non-finite {bad} "
                             f"(see {self.run.log_path})"
                         )
+                    # Checkpoint first, then best.json, then pruning: best.json never
+                    # points to a missing or partial checkpoint (C3-F25).
+                    self._save_checkpoint(epoch)
                     if row["val_energy_mse"] < best_mse:
                         best_epoch, best_mse = epoch, row["val_energy_mse"]
                         self.run.write_best(best_epoch, {"val_energy_mse": best_mse})
-                    self._save_checkpoint(epoch, best_epoch)
+                    self._prune_checkpoints(epoch, best_epoch)
                     logger.info(
                         "epoch %d/%d: train_loss %.6g, val_energy_mse %.6g (kcal/mol)^2, "
                         "best epoch %d, %.1f s",

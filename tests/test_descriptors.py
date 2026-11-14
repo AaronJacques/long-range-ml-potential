@@ -553,3 +553,32 @@ def test_species_counts_are_columns_of_full_counts(mode: str, sort: bool) -> Non
     np.testing.assert_array_equal(compact.long_range_counts, full.long_range_counts[:, species - 1])
     for name in ("local_matrix", "local_numbers", "n_local", "long_range_matrix", "n_long"):
         np.testing.assert_array_equal(getattr(compact, name), getattr(full, name), err_msg=name)
+
+
+def test_compact_species_counts_are_guarded() -> None:
+    """C2-F23: compact counts cannot be padded or read as F_i rows by mistake."""
+    rng = np.random.default_rng(12)
+    pos, z = _random_molecule(rng, 20, BOX["G-B"])
+    z[:3] = [1, 6, 8]
+    grid = _grid("G-B")
+    species = np.unique(z)
+    full = compute_descriptors(pos, z, grid)
+    compact = compute_descriptors(pos, z, grid, species=species.tolist())
+    assert full.species is None and full.atom(0).species is None
+    assert compact.species is not None
+    np.testing.assert_array_equal(compact.species, species)
+    assert compact.species.dtype == np.int64
+
+    with pytest.raises(ValueError, match="compact counts of species"):
+        pad_descriptors(compact, 64, 64)
+    with pytest.raises(ValueError, match="max_atomic_number needs the full"):
+        _ = compact.max_atomic_number
+    with pytest.raises(ValueError, match="long_range_features needs the full"):
+        _ = compact.atom(0).long_range_features
+    # The full form is unaffected.
+    assert full.max_atomic_number == grid.max_atomic_number
+    assert full.atom(0).long_range_features.shape[1] == grid.max_atomic_number + 1
+    pad_descriptors(full, *max_neighbour_counts(full))
+    # A species list that does not match the count columns is rejected.
+    with pytest.raises(ValueError, match="does not match"):
+        dataclasses.replace(compact, species=species[:-1])

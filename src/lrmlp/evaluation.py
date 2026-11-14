@@ -25,14 +25,25 @@ Differences to the legacy script:
 * The errors are computed with explicit TensorFlow ops instead of
   ``keras.losses`` on scalars, which break under Keras 3 (B15).
 
+Before evaluating, the dataset is checked against the copy of its metadata
+that the trainer stored in the run's ``dataset.json`` (grid incl. ``assignment``
+and ``sort_neighbours``, sources and frame counts, split seed and fractions,
+N_max, species; see :data:`CHECKED_DATASET_KEYS`). A different dataset, e.g. one
+built with another grid or split seed (whose test split may contain training
+frames of the run), raises a :class:`ValueError` naming the differing fields.
+``allow_dataset_mismatch=True`` (CLI ``--allow-dataset-mismatch``) evaluates it
+anyway, logs a warning and records the difference in the result.
+
 The result is also written to ``evaluation_<split>_<epoch>.json`` in the run
 directory.
 """
 
 from __future__ import annotations
 
+import logging
 import math
 import operator
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -43,10 +54,34 @@ import numpy.typing as npt
 from lrmlp.potential import Potential
 from lrmlp.run import RunDirectory, write_json
 
-__all__ = ["EvaluationResult", "evaluate", "resolve_dataset_dir"]
+__all__ = ["EvaluationResult", "dataset_mismatches", "evaluate", "resolve_dataset_dir"]
+
+logger = logging.getLogger(__name__)
 
 #: Keys of ``dataset.json`` that may hold the dataset directory, in lookup order.
 DATASET_PATH_KEYS = ("path", "dataset_dir", "dataset_path")
+#: Dataset metadata (``metadata.json``) that must equal the run's ``dataset.json``.
+#: Not compared: ``created``, ``name``, ``lrmlp_version``, ``format_version``,
+#: ``units``, ``arrays``, the dataset ``path``, the source paths (files may move;
+#: their content is compared via ``sha256``) and ``n_samples_per_source`` (only an
+#: upper bound; the frames actually used are compared via ``sources[*].n_frames_used``
+#: and ``frame_offset``, so "all" and a cap above the frame count are equal).
+CHECKED_DATASET_KEYS = (
+    "grid",
+    "sources",
+    "n_samples",
+    "split_seed",
+    "val_fraction",
+    "test_fraction",
+    "splits",
+    "species",
+    "max_atomic_number",
+    "n_max_local",
+    "n_max_long_range",
+)
+#: Keys of every ``sources`` entry that are not compared.
+_IGNORED_SOURCE_KEYS = ("path",)
+_MISSING = "<missing>"
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +110,11 @@ class EvaluationResult:
         Evaluated split.
     energy_abs_errors : ndarray of float32, shape (n_molecules,)
         |Σ_i E_i − E| per molecule in stored order (not written to the JSON file).
+    dataset_mismatch : tuple of str
+        Differences between the evaluated dataset and the run's ``dataset.json``
+        (only non-empty with ``allow_dataset_mismatch=True``). If non-empty,
+        :meth:`to_dict` adds ``"dataset_matches_run": false`` and the list as
+        ``"dataset_mismatch"``.
     """
 
     energy_mae: float
@@ -88,10 +128,11 @@ class EvaluationResult:
     energy_abs_errors: npt.NDArray[np.float32] = field(
         default_factory=lambda: np.zeros(0, dtype=np.float32), repr=False, compare=False
     )
+    dataset_mismatch: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Return the scalar metrics as plain JSON types."""
-        return {
+        out: dict[str, Any] = {
             "energy_mae": self.energy_mae,
             "energy_rmse": self.energy_rmse,
             "energy_mse": self.energy_mse,
@@ -101,6 +142,10 @@ class EvaluationResult:
             "epoch": self.epoch,
             "split": self.split,
         }
+        if self.dataset_mismatch:
+            out["dataset_matches_run"] = False
+            out["dataset_mismatch"] = list(self.dataset_mismatch)
+        return out
 
 
 def resolve_dataset_dir(run: RunDirectory, dataset_dir: str | Path | None = None) -> Path:
@@ -138,6 +183,92 @@ def resolve_dataset_dir(run: RunDirectory, dataset_dir: str | Path | None = None
     )
 
 
+def _diff(run_value: Any, value: Any, key: str) -> list[str]:
+    if isinstance(run_value, Mapping) and isinstance(value, Mapping):
+        out = []
+        for k in sorted(set(run_value) | set(value)):
+            out += _diff(run_value.get(k, _MISSING), value.get(k, _MISSING), f"{key}.{k}")
+        return out
+    if (
+        isinstance(run_value, list)
+        and isinstance(value, list)
+        and len(run_value) == len(value)
+        and any(isinstance(v, Mapping) for v in run_value)
+    ):
+        out = []
+        for i, (a, b) in enumerate(zip(run_value, value, strict=True)):
+            out += _diff(a, b, f"{key}[{i}]")
+        return out
+    if run_value != value:
+        return [f"{key} (run: {run_value!r}, dataset: {value!r})"]
+    return []
+
+
+def _strip_source_paths(sources: Any) -> Any:
+    if not isinstance(sources, list):
+        return sources
+    return [
+        {k: v for k, v in s.items() if k not in _IGNORED_SOURCE_KEYS}
+        if isinstance(s, Mapping)
+        else s
+        for s in sources
+    ]
+
+
+def dataset_mismatches(
+    run_metadata: Mapping[str, Any], dataset_metadata: Mapping[str, Any]
+) -> list[str]:
+    """Differences between a run's ``dataset.json`` and a dataset's metadata.
+
+    Parameters
+    ----------
+    run_metadata : mapping
+        ``dataset.json`` of the run (the dataset metadata at training time).
+    dataset_metadata : mapping
+        ``metadata.json`` of the dataset to evaluate.
+
+    Returns
+    -------
+    list of str
+        One entry ``"<field> (run: <value>, dataset: <value>)"`` per differing
+        field of :data:`CHECKED_DATASET_KEYS` (nested fields as ``grid.assignment``
+        or ``sources[0].sha256``, a missing field as ``'<missing>'``); empty if the
+        dataset is the one the run was trained on.
+    """
+    out = []
+    for key in CHECKED_DATASET_KEYS:
+        run_value = run_metadata.get(key, _MISSING)
+        value = dataset_metadata.get(key, _MISSING)
+        if key == "sources":
+            run_value, value = _strip_source_paths(run_value), _strip_source_paths(value)
+        out += _diff(run_value, value, key)
+    return out
+
+
+def _check_dataset(
+    run: RunDirectory, dataset: Any, path: Path, allow_mismatch: bool
+) -> tuple[str, ...]:
+    mismatch = dataset_mismatches(run.read_dataset_metadata(), dataset.metadata)
+    if not mismatch:
+        return ()
+    details = "; ".join(mismatch)
+    if not allow_mismatch:
+        raise ValueError(
+            f"dataset {path} is not the dataset the run {run.path} was trained on "
+            f"(differences to {run.dataset_path}: {details}); the metrics would not be the "
+            "run's test error. Pass allow_dataset_mismatch=True (CLI: "
+            "--allow-dataset-mismatch) to evaluate on it anyway"
+        )
+    logger.warning(
+        "evaluating run %s on dataset %s, which is NOT the dataset the run was trained on; "
+        "the metrics are not the run's test error. Differences: %s",
+        run.path,
+        path,
+        details,
+    )
+    return tuple(mismatch)
+
+
 def _check_padding(potential: Potential, dataset: Any, path: Path) -> None:
     expected = (potential.n_max_local, potential.n_max_long_range)
     got = (dataset.n_max_local, dataset.n_max_long_range)
@@ -160,6 +291,7 @@ def evaluate(
     dataset_dir: str | Path | None = None,
     *,
     batch_size: int = 256,
+    allow_dataset_mismatch: bool = False,
 ) -> EvaluationResult:
     """Evaluate one checkpoint of a run on a dataset split.
 
@@ -176,6 +308,10 @@ def evaluate(
         Dataset directory; default the path stored in the run's ``dataset.json``.
     batch_size : int
         Molecules per model call; the result does not depend on it.
+    allow_dataset_mismatch : bool
+        Evaluate even if the dataset differs from the run's ``dataset.json`` (see
+        :func:`dataset_mismatches`). A warning is logged and the result carries
+        the differences (``dataset_matches_run: false`` in the JSON file).
 
     Returns
     -------
@@ -190,8 +326,10 @@ def evaluate(
         If a run file, ``best.json`` or the requested checkpoint is missing (the
         message lists the available epochs), or the dataset does not exist.
     ValueError
-        If the split is unknown or empty, or the dataset's padding does not match
-        the run (B08).
+        If the split is unknown or empty, the dataset is not the one the run was
+        trained on and ``allow_dataset_mismatch`` is false (the message names the
+        differing fields), or the dataset's padding does not match the run (B08;
+        also with ``allow_dataset_mismatch``).
     """
     import tensorflow as tf
 
@@ -205,6 +343,7 @@ def evaluate(
     dataset = load_dataset(path)
     if split not in dataset.splits:
         raise ValueError(f"unknown split {split!r}; available: {sorted(dataset.splits)}")
+    mismatch = _check_dataset(run, dataset, path, allow_dataset_mismatch)
     _check_padding(potential, dataset, path)
     data = dataset[split]
     if len(data) == 0:
@@ -246,6 +385,7 @@ def evaluate(
         epoch=potential.epoch,
         split=split,
         energy_abs_errors=errors,
+        dataset_mismatch=mismatch,
     )
     write_json(
         run.evaluation_path(split, potential.epoch),

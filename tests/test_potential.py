@@ -209,3 +209,45 @@ def test_evaluate_matches_predict(
 def test_missing_checkpoint(energy_run: RunDirectory) -> None:
     with pytest.raises(FileNotFoundError, match="no checkpoint for epoch 9"):
         Potential.from_run(energy_run.path, epoch=9)
+
+
+# --------------------------------------------------------------------------- C3-F27
+
+
+def test_parallel_descriptors_identical(
+    energy_run: RunDirectory, frames: dict[str, np.ndarray]
+) -> None:
+    """The worker path yields exactly the arrays of :meth:`Potential.descriptors`."""
+    pot = Potential.from_run(energy_run.path)
+    pos, z = frames["R"][:40].astype(np.float64), frames["z"].astype(np.int64)
+    parallel = list(pot._parallel_frames(pos, z, 2))
+    assert len(parallel) == 40
+    for s, got in enumerate(parallel):
+        expected = pot.descriptors(pos[s], z)
+        assert got.keys() == expected.keys()
+        for key in expected:
+            assert got[key].dtype == expected[key].dtype
+            np.testing.assert_array_equal(got[key], expected[key])
+
+
+def test_predict_n_workers_identical(
+    force_run: RunDirectory, frames: dict[str, np.ndarray]
+) -> None:
+    pot = Potential.from_run(force_run.path)
+    pos, z = frames["R"][:40], frames["z"]
+    serial = pot.predict(pos, z, batch_size=16)
+    parallel = pot.predict(pos, z, batch_size=16, n_workers=2)
+    assert serial.forces is not None and parallel.forces is not None
+    np.testing.assert_array_equal(parallel.energies, serial.energies)
+    np.testing.assert_array_equal(parallel.forces, serial.forces)
+    assert pot.tracing_count == 1
+
+
+def test_predict_n_workers_errors(energy_run: RunDirectory, frames: dict[str, np.ndarray]) -> None:
+    pot = Potential.from_run(energy_run.path)
+    dense = frames["R"][:10].copy()
+    dense[7] *= 0.5  # second frame of the chunk starting at frame 6
+    with pytest.raises(ValueError, match=rf"frame 7: .*n_max_local = {pot.n_max_local}"):
+        pot.predict(dense, frames["z"], n_workers=2)
+    with pytest.raises(ValueError, match="n_workers"):
+        pot.predict(frames["R"][:2], frames["z"], n_workers=-1)

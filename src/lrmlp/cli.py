@@ -274,6 +274,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--batch-size", type=_positive_int, default=256, help="molecules per model call")
     p.add_argument(
+        "--allow-dataset-mismatch",
+        action="store_true",
+        help="evaluate even if the dataset is not the one the run was trained on "
+        "(differs from the run's dataset.json); logs a warning and marks the result",
+    )
+    p.add_argument(
         "--json",
         dest="json_out",
         type=_json_target,
@@ -307,6 +313,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="checkpoint: best, last or an epoch number",
     )
     p.add_argument("--batch-size", type=_positive_int, default=256, help="molecules per model call")
+    p.add_argument(
+        "--workers",
+        type=_non_negative_int,
+        default=1,
+        metavar="N",
+        help="worker processes for the descriptors, 0 = all CPUs, 1 = none",
+    )
     p.set_defaults(handler=_cmd_predict)
 
     # tune
@@ -476,7 +489,14 @@ def _cmd_train(args: argparse.Namespace) -> int:
 def _cmd_evaluate(args: argparse.Namespace) -> int:
     from lrmlp.evaluation import evaluate
 
-    result = evaluate(args.run, args.split, args.epoch, args.dataset, batch_size=args.batch_size)
+    result = evaluate(
+        args.run,
+        args.split,
+        args.epoch,
+        args.dataset,
+        batch_size=args.batch_size,
+        allow_dataset_mismatch=args.allow_dataset_mismatch,
+    )
     if args.json_out is not None:
         _emit_json(result.to_dict(), args.json_out)
         if args.json_out == "-":
@@ -494,6 +514,8 @@ def _cmd_evaluate(args: argparse.Namespace) -> int:
             ("force MAE [kcal/(mol A)]", result.force_mae),
             ("force RMSE [kcal/(mol A)]", result.force_rmse),
         ]
+    if result.dataset_mismatch:
+        rows.append(("dataset matches run", "NO (see warning)"))
     sys.stdout.write(_table(rows, f"evaluation of {args.run}"))
     return 0
 
@@ -533,7 +555,9 @@ def _cmd_predict(args: argparse.Namespace) -> int:
         potential.epoch,
         args.run,
     )
-    prediction = potential.predict(positions, numbers, batch_size=args.batch_size)
+    prediction = potential.predict(
+        positions, numbers, batch_size=args.batch_size, n_workers=args.workers
+    )
     arrays: dict[str, Any] = {"E": np.asarray(prediction.energies, dtype=np.float64)}
     if prediction.forces is not None:
         arrays["F"] = np.asarray(prediction.forces, dtype=np.float64)

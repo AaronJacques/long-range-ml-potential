@@ -92,6 +92,10 @@ class AtomDescriptors:
         R̃_long rows ``[1/r, x/r, y/r, z/r]`` (Eq. 4.16-4.18).
     long_range_counts : ndarray of int64, shape (m, max_atomic_number)
         Element counts f_Z of the long-range cells, column Z − 1 holds element Z.
+        In the compact form (``species`` set) column s holds element ``species[s]``.
+    species : ndarray of int64 or None
+        ``None`` for the full m_max count columns; the counted elements for the
+        compact form of ``compute_descriptors(..., species=...)``.
     """
 
     center_number: int
@@ -99,10 +103,18 @@ class AtomDescriptors:
     local_numbers: IntArray
     long_range_matrix: FloatArray
     long_range_counts: IntArray
+    species: IntArray | None = None
 
     @property
     def long_range_features(self) -> IntArray:
-        """F_i rows ``[z_i, f_1, …, f_mmax]`` (Eq. 4.19-4.20), shape (m, max_atomic_number + 1)."""
+        """F_i rows ``[z_i, f_1, …, f_mmax]`` (Eq. 4.19-4.20), shape (m, max_atomic_number + 1).
+
+        Raises
+        ------
+        ValueError
+            For compact counts (``species`` set): their columns are not f_1 … f_mmax.
+        """
+        _require_full_counts(self.species, "long_range_features")
         m = self.long_range_counts.shape[0]
         center = np.full((m, 1), self.center_number, dtype=np.int64)
         return np.concatenate([center, self.long_range_counts], axis=1)
@@ -133,6 +145,13 @@ class MoleculeDescriptors:
         Number m of long-range rows per atom.
     center_numbers : ndarray of int64, shape (N,)
         Atomic numbers z_i in input order.
+    species : ndarray of int64, shape (n_species,), or None
+        ``None`` (default) if ``long_range_counts`` has the full m_max columns
+        (column Z − 1 = element Z). Set by ``compute_descriptors(..., species=...)``
+        for the compact form, where column s holds element ``species[s]``; such
+        descriptors are rejected by :func:`pad_descriptors`,
+        :attr:`max_atomic_number` and :attr:`AtomDescriptors.long_range_features`
+        (C2-F23).
     """
 
     local_matrix: FloatArray
@@ -142,6 +161,7 @@ class MoleculeDescriptors:
     long_range_counts: IntArray
     n_long: IntArray
     center_numbers: IntArray
+    species: IntArray | None = None
 
     def __post_init__(self) -> None:
         """Check that the ragged arrays are consistent."""
@@ -157,6 +177,11 @@ class MoleculeDescriptors:
             raise ValueError(f"expected {m} long-range rows of width 4")
         if self.long_range_counts.ndim != 2 or self.long_range_counts.shape[0] != m:
             raise ValueError(f"expected {m} long-range count rows")
+        if self.species is not None and self.species.shape != (self.long_range_counts.shape[1],):
+            raise ValueError(
+                f"species {self.species.tolist()} does not match the "
+                f"{self.long_range_counts.shape[1]} long-range count columns"
+            )
 
     @classmethod
     def empty(cls, max_atomic_number: int = 100) -> MoleculeDescriptors:
@@ -178,7 +203,15 @@ class MoleculeDescriptors:
 
     @property
     def max_atomic_number(self) -> int:
-        """Length m_max of the element count vector (p. 42)."""
+        """Length m_max of the element count vector (p. 42).
+
+        Raises
+        ------
+        ValueError
+            For compact counts (``species`` set), whose width is the number of
+            species, not m_max.
+        """
+        _require_full_counts(self.species, "max_atomic_number")
         return int(self.long_range_counts.shape[1])
 
     @property
@@ -212,6 +245,17 @@ class MoleculeDescriptors:
             local_numbers=self.local_numbers[lo:hi],
             long_range_matrix=self.long_range_matrix[lr_lo:lr_hi],
             long_range_counts=self.long_range_counts[lr_lo:lr_hi],
+            species=self.species,
+        )
+
+
+def _require_full_counts(species: IntArray | None, what: str) -> None:
+    """Reject compact long-range counts where the full m_max columns are needed (C2-F23)."""
+    if species is not None:
+        raise ValueError(
+            f"{what} needs the full max_atomic_number count columns, but these descriptors "
+            f"hold compact counts of species {species.tolist()} (compute_descriptors(..., "
+            "species=...)); compute them without species"
         )
 
 
@@ -306,9 +350,10 @@ def compute_descriptors(
     species : array_like of int, optional
         Count only these distinct elements: ``long_range_counts[:, s]`` then
         holds element ``species[s]`` (compact storage form, see
-        :func:`lrmlp.grid.cell_aggregates`). Such a result is **not** valid input
-        for :func:`pad_descriptors` or ``long_range_features``, which expect the
-        full m_max columns of the default.
+        :func:`lrmlp.grid.cell_aggregates`). The result records ``species`` and
+        is rejected (``ValueError``) by :func:`pad_descriptors`,
+        ``max_atomic_number`` and ``long_range_features``, which need the full
+        m_max columns of the default.
 
     Returns
     -------
@@ -377,6 +422,7 @@ def compute_descriptors(
         long_range_counts=long_range_counts.astype(np.int64),
         n_long=n_long,
         center_numbers=z,
+        species=None if species is None else np.asarray(species).astype(np.int64).reshape(-1),
     )
 
 
@@ -432,8 +478,10 @@ def pad_descriptors(
     ------
     ValueError
         If an atom has more rows than ``n_max_local`` / ``n_max_long_range``, a
-        size is negative or an atomic number does not fit into uint8.
+        size is negative, an atomic number does not fit into uint8, or ``desc``
+        holds compact counts (``compute_descriptors(..., species=...)``, C2-F23).
     """
+    _require_full_counts(desc.species, "pad_descriptors")
     n_max_local = operator.index(n_max_local)
     n_max_long_range = operator.index(n_max_long_range)
     if n_max_local < 0 or n_max_long_range < 0:

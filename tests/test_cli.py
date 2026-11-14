@@ -127,6 +127,7 @@ def test_help_does_not_import_tensorflow(argv: list[str]) -> None:
         ["evaluate", "--run", "r", "--epoch", "first"],
         ["predict", "--run", "r", "--input", "in.npz"],
         ["predict", "--run", "r", "--input", "i", "--output", "o", "--batch-size", "0"],
+        ["predict", "--run", "r", "--input", "i", "--output", "o", "--workers", "-1"],
         ["tune", "--config", "c.toml"],
         ["plot-log"],
         ["plot-log", "--run", "r", "--log", "l.csv"],
@@ -327,6 +328,41 @@ def test_predict_matches_potential(pipeline: Pipeline) -> None:
         expected = Potential.from_run(pipeline.run).predict(raw["R"], raw["z"]).energies
     with np.load(pipeline.prediction) as out:
         np.testing.assert_allclose(out["E"], expected, rtol=1e-6)
+
+
+def test_evaluate_rejects_other_dataset(
+    pipeline: Pipeline,
+    fixtures_dir: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """C3-F24: another split seed is refused unless --allow-dataset-mismatch is given."""
+    config = str(fixtures_dir / "configs" / "smoke.toml")
+    other = tmp_path / "ds7"
+    argv = ["prepare", "-c", config, "-o", str(other), "--workers", "1"]
+    assert cli.main([*argv, "--set", "data.split_seed=7"]) == 0
+    capsys.readouterr()
+    argv = ["evaluate", "--run", str(pipeline.run), "--dataset", str(other), "--json", "-"]
+    assert cli.main(argv) == 1
+    err = capsys.readouterr().err
+    assert "split_seed (run: 42, dataset: 7)" in err
+    assert "--allow-dataset-mismatch" in err
+    with caplog.at_level("WARNING", logger="lrmlp.evaluation"):
+        assert cli.main([*argv, "--allow-dataset-mismatch"]) == 0
+    metrics = json.loads(capsys.readouterr().out)
+    assert metrics["dataset_matches_run"] is False
+    assert "split_seed (run: 42, dataset: 7)" in metrics["dataset_mismatch"]
+    assert "NOT the dataset the run was trained on" in caplog.text
+
+
+def test_predict_workers_identical(pipeline: Pipeline, tmp_path: Path) -> None:
+    """C3-F27: --workers 2 gives the same output file content as the serial default."""
+    out = tmp_path / "pred2.npz"
+    argv = ["predict", "--run", str(pipeline.run), "-i", str(pipeline.workdir / "in.npz")]
+    assert cli.main([*argv, "-o", str(out), "--workers", "2"]) == 0
+    with np.load(out) as parallel, np.load(pipeline.prediction) as serial:
+        np.testing.assert_array_equal(parallel["E"], serial["E"])
 
 
 @pytest.mark.parametrize(

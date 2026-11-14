@@ -8,6 +8,8 @@ checkpoint. :meth:`Potential.predict` then
 1. computes the descriptors of every frame with
    :func:`lrmlp.descriptors.compute_descriptors` (vectorised NumPy) using the
    grid configuration of the run, and pads them to the N_max of the run;
+   with ``n_workers > 1`` the frames are processed in chunks in worker
+   processes, with the chunk and process-pool logic of :mod:`lrmlp.dataset`;
 2. concatenates the atoms of up to ``batch_size`` molecules into one model call;
 3. sums the atomic energies per molecule with :func:`tf.math.segment_sum`.
 
@@ -34,6 +36,7 @@ forces, Å for positions.
 
 from __future__ import annotations
 
+import math
 import operator
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -44,7 +47,12 @@ import numpy as np
 import numpy.typing as npt
 
 from lrmlp.config import ExperimentConfig
-from lrmlp.descriptors import compute_descriptors, max_neighbour_counts, pad_descriptors
+from lrmlp.descriptors import (
+    MoleculeDescriptors,
+    compute_descriptors,
+    max_neighbour_counts,
+    pad_descriptors,
+)
 from lrmlp.run import RunDirectory
 
 if TYPE_CHECKING:
@@ -272,7 +280,9 @@ class Potential:
             model was trained with, or the input is malformed.
         """
         z = self._check_numbers(numbers)
-        desc = compute_descriptors(positions, z, self.config.grid)
+        return self._pad(compute_descriptors(positions, z, self.config.grid))
+
+    def _pad(self, desc: MoleculeDescriptors) -> dict[str, Any]:
         n_local, n_long = max_neighbour_counts(desc)
         if n_local > self.n_max_local:
             raise ValueError(
@@ -294,6 +304,8 @@ class Potential:
         positions: npt.ArrayLike,
         numbers: npt.ArrayLike,
         batch_size: int = 256,
+        *,
+        n_workers: int = 1,
     ) -> Prediction:
         """Predict energies (and forces) of frames of one molecule.
 
@@ -306,6 +318,18 @@ class Potential:
         batch_size : int
             Molecules per model call. The result does not depend on it (up to
             float32 rounding).
+        n_workers : int
+            Processes for the descriptor computation: 1 (default) computes them
+            frame by frame in this process, 0 uses all CPUs. With more than one
+            worker the frames are split into chunks of consecutive frames that
+            are computed in a ``"spawn"`` process pool (as in
+            :func:`lrmlp.dataset.build_dataset`); the result is identical and in
+            input order. Worth it for many frames of large molecules, where the
+            descriptors dominate the run time. Scripts calling this with more than
+            one worker need an ``if __name__ == "__main__":`` guard. The parallel
+            path stores the descriptors in the compact dataset format first, so a
+            long-range cell may hold at most 255 atoms of one element there, and
+            all descriptors are computed before the first model call.
 
         Returns
         -------
@@ -318,8 +342,11 @@ class Potential:
         ValueError
             If the shapes do not match, an atomic number is outside
             1 … ``grid.max_atomic_number``, an atom has more neighbours than the
-            model's N_max, or two atoms coincide.
+            model's N_max, two atoms coincide, or ``n_workers`` is negative. The
+            message names the frame.
         """
+        from lrmlp.dataset import _UINT8_MAX, _resolve_workers
+
         pos = np.asarray(positions, dtype=np.float64)
         if pos.ndim == 2:
             pos = pos[None]
@@ -329,6 +356,8 @@ class Potential:
         if pos.shape[1] != z.shape[0]:
             raise ValueError(f"positions have {pos.shape[1]} atoms, numbers have {z.shape[0]}")
 
+        workers = _resolve_workers(n_workers, 1)
+
         def frames() -> Iterator[dict[str, Any]]:
             for s in range(pos.shape[0]):
                 try:
@@ -336,11 +365,61 @@ class Potential:
                 except ValueError as err:
                     raise ValueError(f"frame {s}: {err}") from err
 
-        prediction = self._predict_padded(frames(), pos.shape[0], batch_size)
+        # Z > 255 does not fit into the compact format; the serial path reports it.
+        parallel = workers > 1 and pos.shape[0] > 1 and int(z.max()) <= _UINT8_MAX
+        molecules = self._parallel_frames(pos, z, workers) if parallel else frames()
+        prediction = self._predict_padded(molecules, pos.shape[0], batch_size)
         forces = None
         if prediction.forces is not None:
             forces = prediction.forces.reshape(pos.shape)
         return Prediction(prediction.energies, forces)
+
+    def _parallel_frames(
+        self, pos: npt.NDArray[np.float64], z: npt.NDArray[np.int64], workers: int
+    ) -> Iterator[dict[str, Any]]:
+        """Yield the padded inputs of all frames, descriptors from ``lrmlp.dataset`` workers.
+
+        The workers return the compact ragged descriptors of a chunk of frames
+        (float32 / uint8, counts of ``species`` only); they are expanded to the
+        full count columns and padded here, which gives exactly the arrays of
+        :meth:`descriptors`.
+        """
+        from lrmlp.dataset import _MAX_CHUNK, _ChunkTask, _run_tasks
+
+        n_frames, n_atoms = pos.shape[0], z.shape[0]
+        species = np.unique(z)
+        max_z = self.config.grid.max_atomic_number
+        chunk = max(1, min(_MAX_CHUNK, math.ceil(n_frames / (4 * workers))))
+        tasks = [
+            _ChunkTask(pos[lo : lo + chunk], z, self.config.grid, species, "positions", lo, 0)
+            for lo in range(0, n_frames, chunk)
+        ]
+        results: list[Any] = _run_tasks(tasks, workers)
+        for k, task in enumerate(tasks):
+            ragged, results[k] = results[k], None
+            c = task.positions.shape[0]
+            n_local = ragged.n_local.reshape(c, n_atoms)
+            n_long = ragged.n_long.reshape(c, n_atoms)
+            local_offsets = np.concatenate([[0], np.cumsum(n_local.sum(axis=1))])
+            long_offsets = np.concatenate([[0], np.cumsum(n_long.sum(axis=1))])
+            for f in range(c):
+                lo, hi = int(local_offsets[f]), int(local_offsets[f + 1])
+                lr_lo, lr_hi = int(long_offsets[f]), int(long_offsets[f + 1])
+                counts = np.zeros((lr_hi - lr_lo, max_z), dtype=np.int64)
+                counts[:, species - 1] = ragged.long_range_counts[lr_lo:lr_hi]
+                desc = MoleculeDescriptors(
+                    local_matrix=ragged.local_matrix[lo:hi],
+                    local_numbers=ragged.local_numbers[lo:hi].astype(np.int64),
+                    n_local=n_local[f],
+                    long_range_matrix=ragged.long_range_matrix[lr_lo:lr_hi],
+                    long_range_counts=counts,
+                    n_long=n_long[f],
+                    center_numbers=z,
+                )
+                try:
+                    yield self._pad(desc)
+                except ValueError as err:
+                    raise ValueError(f"frame {task.first_frame + f}: {err}") from err
 
     def predict_descriptors(
         self, molecules: Sequence[Mapping[str, Any]], batch_size: int = 256

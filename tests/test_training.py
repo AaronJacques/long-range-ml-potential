@@ -92,6 +92,22 @@ def test_run_layout_and_log_columns(dataset_dir: Path, tmp_path: Path) -> None:
     assert float(rows[-1]["learning_rate"]) == pytest.approx(1e-3 * 0.97 ** (96 // 20), rel=1e-6)
 
 
+def test_learning_rate_column_is_rate_at_epoch_end(dataset_dir: Path, tmp_path: Path) -> None:
+    """C3-F26: ``learning_rate`` is η(t) with t = steps after the epoch, as documented."""
+    doc = log_columns.__doc__ or ""
+    assert "``learning_rate``" in doc and "**end** of the epoch" in doc
+    trainer = Trainer(_cfg("train.epochs=2"), dataset_dir, tmp_path / "run")
+    result = trainer.fit()
+    _, rows = _read_log(trainer.run.log_path)
+    for epoch, row in enumerate(rows, start=1):
+        steps = 48 * epoch
+        logged = float(row["learning_rate"])
+        assert logged == pytest.approx(float(trainer.lr_schedule(steps)), rel=1e-7)
+        # Not the rate of the first step of the epoch (a decay boundary lies inside).
+        assert logged != pytest.approx(float(trainer.lr_schedule(steps - 48)), rel=1e-7)
+    assert result.steps == 96
+
+
 def test_force_mode_log_columns(dataset_dir: Path, tmp_path: Path) -> None:
     result = train(
         _cfg("model.predict_forces=true", "train.epochs=1"),
@@ -170,6 +186,43 @@ def test_best_checkpoint_reproduces_best_validation(dataset_dir: Path, tmp_path:
     assert trainer.validate()["val_energy_mse"] == pytest.approx(
         result.best_val_energy_mse, rel=1e-12
     )
+
+
+def test_failed_checkpoint_keeps_best_json_valid(
+    dataset_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """C3-F25: a checkpoint write that fails never leaves best.json pointing at it."""
+    trainer = Trainer(_cfg("train.epochs=3"), dataset_dir, tmp_path / "run")
+    _scripted_validation(trainer, [3.0, 1.0, 0.5])
+    save = trainer.model.save_weights
+    calls: list[str] = []
+
+    def failing_save(path: str, *args: Any, **kwargs: Any) -> None:
+        calls.append(path)
+        if len(calls) == 2:  # epoch 2, the new best: write half a file, then fail
+            Path(path).write_bytes(b"partial")
+            raise OSError("disk full")
+        save(path, *args, **kwargs)
+
+    monkeypatch.setattr(trainer.model, "save_weights", failing_save)
+    with pytest.raises(OSError, match="disk full"):
+        trainer.fit()
+    # The checkpoint went to a hidden temporary file, never to the final name.
+    assert Path(calls[1]).name.startswith(".") and Path(calls[1]).name.endswith(".weights.h5")
+    assert Path(calls[1]).parent == trainer.run.checkpoint_dir
+    assert trainer.run.read_best() == {"epoch": 1, "val_energy_mse": 3.0}
+    assert trainer.run.list_checkpoints() == [1]
+    assert sorted(p.name for p in trainer.run.checkpoint_dir.iterdir()) == ["epoch_0001.weights.h5"]
+    assert trainer.run.resolve_epoch("best") == 1
+    trainer.model.load_weights(str(trainer.run.checkpoint_path(1)))
+
+
+def test_checkpoints_leave_no_temporary_files(dataset_dir: Path, tmp_path: Path) -> None:
+    trainer = Trainer(_cfg("train.epochs=3"), dataset_dir, tmp_path / "run")
+    _scripted_validation(trainer, [3.0, 1.0, 2.0])
+    trainer.fit()
+    names = sorted(p.name for p in trainer.run.checkpoint_dir.iterdir())
+    assert names == ["epoch_0002.weights.h5", "epoch_0003.weights.h5"]
 
 
 def test_diverging_training_raises(dataset_dir: Path, tmp_path: Path) -> None:
