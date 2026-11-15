@@ -72,6 +72,7 @@ from golden import synthetic  # noqa: E402
 
 SCHEMA_VERSION = 1
 PROFILE = REPO_ROOT / "configs" / "legacy-head.toml"
+THESIS_PRESETS = ("paracetamol", "aspirin", "ac-ala3-nhme", "stachyose")
 SUITES = ("prep", "input", "train", "infer")
 
 # name -> generator, seed, frames (full / --quick), grid (G-A / G-C of the goldens)
@@ -721,6 +722,10 @@ class NewBench:
         import tensorflow as tf
 
         import lrmlp
+        from lrmlp.config import TrainConfig, load_config
+
+        def execution(tc: Any) -> dict[str, Any]:
+            return {"steps_per_execution": tc.steps_per_execution, "jit_compile": tc.jit_compile}
 
         return {
             "tensorflow": tf.__version__,
@@ -728,6 +733,15 @@ class NewBench:
             "lrmlp": lrmlp.__version__,
             "intra_op_threads": tf.config.threading.get_intra_op_parallelism_threads(),
             "inter_op_threads": tf.config.threading.get_inter_op_parallelism_threads(),
+            # Execution settings of the measured code: the TrainConfig defaults and the
+            # four thesis presets (labels of the training rows in compare.py).
+            "train_defaults": {
+                "TrainConfig": execution(TrainConfig()),
+                "presets": {
+                    name: execution(load_config(REPO_ROOT / "configs" / f"{name}.toml").train)
+                    for name in THESIS_PRESETS
+                },
+            },
         }
 
     # ------------------------------------------------------------------ helpers

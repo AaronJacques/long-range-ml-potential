@@ -1,4 +1,4 @@
-"""Atomic energy network of the thesis in native Keras 3 (Sec. 4.3-4.5, Fig. 4.2-4.6).
+"""Atomic energy network of the thesis in native Keras 3 (Sec. 4.3.3, Fig. 4.2-4.6).
 
 The network maps the padded descriptors of one atom to its atomic energy (and, in
 the experimental force mode, three force components). Per branch (local, Fig. 4.3,

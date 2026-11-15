@@ -1,4 +1,4 @@
-"""Local and long-range descriptor matrices of every atom (thesis Sec. 4.1-4.2).
+"""Local and long-range descriptor matrices of every atom (thesis Sec. 4.1 and 4.3.2).
 
 This module replaces ``get_s``, ``get_expanded_distance_vector[_local]``,
 ``process_neighbour``, ``sort_matrix``, the row building of ``create_matrices``

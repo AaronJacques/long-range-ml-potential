@@ -1,0 +1,24 @@
+# Energy-only hyperparameter search: the recommended starting point for the method
+# of the thesis (energy loss Eq. 4.21, learning rate Eq. 4.22; forces are not
+# trained, p. 40 and 51).
+#
+# The axes are those of the legacy search (configs/hparam_search.example.toml,
+# HyperparameterTester.py@9413bfd) that act on the energy-only training: eta_init,
+# the decay steps s and the decay rate of the learning rate. The loss-weight axes
+# (p_*, loss-weight decay) only act in the experimental force mode (A09) and are
+# left out. 3·4·4 = 48 combinations.
+#
+#   lrmlp tune --config configs/aspirin.toml --space configs/hparam_search.energy.toml
+#   lrmlp tune ... --dry-run          # only count and list the combinations
+#
+# The metric is the best validation energy MSE (kcal/mol)^2 of each trial (p. 52).
+
+[space]
+# eta_init, Eq. 4.22 (legacy "initial_learning_rate")
+"train.learning_rate" = [1e-2, 1e-3, 1e-4]
+# s of the learning-rate decay, Eq. 4.22 (legacy "lr_decay_steps")
+"train.lr_decay_steps" = [1e3, 1e4, 1e5, 1e6]
+# decay rate of the learning rate, Eq. 4.22 (legacy "decay_rate")
+"train.lr_decay_rate" = [0.96, 0.97, 0.98, 0.99]
+# energy-only training (method of the thesis), also if the base config enables forces
+"model.predict_forces" = [false]

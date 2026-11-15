@@ -638,3 +638,33 @@ def test_mixed_dataset_equals_direct_descriptors(mixed: Path) -> None:
             for key, value in expected.items():
                 assert mol[key].dtype == value.dtype, key
                 np.testing.assert_array_equal(mol[key], value, err_msg=f"{name}[{k}] {key}")
+
+
+# --------------------------------------------------------------------------- C4-K3
+
+
+def test_workers_use_one_blas_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    """C4-K3: the spawned workers start with one BLAS/OpenMP thread each.
+
+    The parent keeps its environment: a set variable gets its value back, an
+    unset one stays unset.
+    """
+    from lrmlp.dataset import WORKER_THREAD_ENV, _worker_map
+
+    monkeypatch.setenv("OPENBLAS_NUM_THREADS", "7")
+    monkeypatch.delenv("OMP_NUM_THREADS", raising=False)
+    names = list(WORKER_THREAD_ENV) * 2
+    assert _worker_map(os.getenv, names, 2) == ["1"] * len(names)
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "7"
+    assert "OMP_NUM_THREADS" not in os.environ
+
+
+def test_worker_environment_restored_after_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """C4-K3: the parent environment is restored when the workers fail."""
+    from lrmlp.dataset import WORKER_THREAD_ENV, _worker_map
+
+    for name in WORKER_THREAD_ENV:
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(ValueError):
+        _worker_map(int, ["1", "not a number"], 2)
+    assert not any(name in os.environ for name in WORKER_THREAD_ENV)

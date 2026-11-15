@@ -45,4 +45,9 @@ learning_rate = 1e-4     # η_init (Tab. 5.2)
 lr_decay_steps = 2.08e5  # s (Eq. 4.22, Tab. 5.2)
 lr_decay_rate = 0.97        # Eq. 4.22
 lr_staircase = true
+# Execution only (docs/benchmarks.md): 8 steps per compiled call (bit-identical to
+# 1) and XLA (about 2x faster). With dropout, XLA draws other dropout masks than a
+# run without XLA: statistically equivalent, not bit-identical.
+steps_per_execution = 8
+jit_compile = true
 run_root = "../runs"

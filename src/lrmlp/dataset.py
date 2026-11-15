@@ -105,7 +105,7 @@ import os
 import secrets
 import shutil
 import sys
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -237,7 +237,7 @@ class _ChunkTask:
     numbers: IntArray  # (N,)
     grid: GridConfig
     species: IntArray  # (n_species,)
-    source: str  # trajectory path, for error messages
+    source: str | None  # trajectory path for error messages; None: "frame f: ..." only
     first_frame: int  # frame index of positions[0] within the source
     frame_offset: int  # global frame index of frame 0 of the source
 
@@ -298,7 +298,9 @@ def _chunk_descriptors(task: _ChunkTask) -> _Ragged:
     """Descriptors of the frames of one task (runs in a worker process).
 
     A :class:`ValueError` of a frame is re-raised with the source path and the
-    frame index (within the source and global).
+    frame index (within the source and global); without a source (``source=None``,
+    :meth:`lrmlp.potential.Potential.predict`) as ``frame f: ...``, the message of
+    the serial path.
     """
     parts = []
     for k, positions in enumerate(task.positions):
@@ -311,6 +313,8 @@ def _chunk_descriptors(task: _ChunkTask) -> _Ragged:
                 )
         except ValueError as exc:
             frame = task.first_frame + k
+            if task.source is None:
+                raise ValueError(f"frame {frame}: {exc}") from exc
             raise ValueError(
                 f"{task.source}: frame {frame} (global frame {task.frame_offset + frame}): {exc}"
             ) from exc
@@ -357,17 +361,69 @@ def _importable_main() -> Iterator[None]:
         main.__file__ = path
 
 
-def _run_tasks(tasks: list[_ChunkTask], n_workers: int) -> list[_Ragged]:
-    """Run the tasks in order, in-process for one worker, else in a process pool."""
-    n_workers = min(n_workers, len(tasks))
-    if n_workers <= 1:
-        return [_chunk_descriptors(t) for t in tasks]
+#: Thread-pool variables of the BLAS/OpenMP libraries that NumPy may load; set to 1
+#: in the descriptor worker processes.
+WORKER_THREAD_ENV = (
+    "OMP_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+    "BLIS_NUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+)
+
+
+@contextlib.contextmanager
+def _single_threaded_children() -> Iterator[None]:
+    """Let child processes started in this block use one BLAS/OpenMP thread each.
+
+    BLAS libraries read their thread count once, when NumPy loads them. A spawned
+    worker imports NumPy before any pool initializer runs (it re-imports the
+    parent's main module first), so the variables of :data:`WORKER_THREAD_ENV` are
+    set in ``os.environ`` while the workers are started and inherited by them. The
+    parent's already loaded libraries are not affected, and the previous values
+    are restored on exit. Without this, every worker starts a thread pool with one
+    thread per CPU and N workers oversubscribe the CPU (``docs/benchmarks.md``).
+    """
+    saved = {name: os.environ.get(name) for name in WORKER_THREAD_ENV}
+    os.environ.update(dict.fromkeys(WORKER_THREAD_ENV, "1"))
+    try:
+        yield
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+def _worker_map[T, R](fn: Callable[[T], R], items: Sequence[T], n_workers: int) -> list[R]:
+    """``[fn(x) for x in items]`` in a "spawn" process pool of ``n_workers`` workers.
+
+    The workers use one BLAS/OpenMP thread each (:func:`_single_threaded_children`).
+    """
     # "spawn" is safe even if the parent has already imported TensorFlow.
     with (
         _importable_main(),
         ProcessPoolExecutor(max_workers=n_workers, mp_context=get_context("spawn")) as pool,
     ):
-        return list(pool.map(_chunk_descriptors, tasks))
+        # The executor starts its workers while the tasks are submitted, i.e. inside
+        # Executor.map, which submits every task before it returns.
+        with _single_threaded_children():
+            results = pool.map(fn, items)
+        return list(results)
+
+
+def _run_tasks(tasks: list[_ChunkTask], n_workers: int) -> list[_Ragged]:
+    """Run the tasks in order, in-process for one worker, else in a process pool.
+
+    The workers use one BLAS/OpenMP thread each (:func:`_single_threaded_children`);
+    the serial path runs in the calling process with its thread settings.
+    """
+    n_workers = min(n_workers, len(tasks))
+    if n_workers <= 1:
+        return [_chunk_descriptors(t) for t in tasks]
+    return _worker_map(_chunk_descriptors, tasks, n_workers)
 
 
 def _make_build_dir(target: Path) -> Path:

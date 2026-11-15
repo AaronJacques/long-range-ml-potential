@@ -3,7 +3,7 @@
 This module replaces ``GridCell``, ``create_grid`` and the assignment part of
 ``create_matrices`` of the legacy ``Neural-Network/Dataset.py`` (commit ``9413bfd``)
 with vectorised NumPy code. Equation and figure numbers refer to the thesis
-(Sec. 4.2, pp. 42-43).
+(Sec. 4.2, p. 39, and Sec. 4.3.2, pp. 41-43).
 
 Grid (Eq. 4.11, 4.13)
     The grid is axis-aligned with origin g_000 = component-wise minimum of the

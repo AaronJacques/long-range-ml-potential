@@ -9,8 +9,9 @@ upper right, the first ``skip`` epochs left out, one PDF per figure); what chang
   :func:`lrmlp.training.log_columns` and the legacy ones (``Epoch``, ``Energy Loss``,
   ``Val Energy Loss``, ...), see :data:`LEGACY_COLUMNS`;
 * the title states "with" or "without Long-Range" according to
-  ``model.use_long_range`` of the run (the notebook always wrote "without", B18) or
-  is given explicitly;
+  ``model.use_long_range`` of the run or is given explicitly (B18: cell 2 of the
+  notebook, ``plot_loss``, always wrote "without"; cell 3, ``plot_energy_loss``,
+  already used the flag);
 * force, total-loss and loss-weight figures are drawn only if the log has them;
 * paths are portable, the default output directory is ``<run>/plots/``.
 """
@@ -159,7 +160,8 @@ def energy_title(name: str | None, use_long_range: bool | None) -> str:
     -------
     str
         ``"Energy Loss <name> with Long-Range"`` or ``"... without Long-Range"``
-        (B18: the notebook wrote "without" regardless of the flag).
+        (B18: ``plot_loss`` in cell 2 of the notebook wrote "without" regardless
+        of the flag; ``plot_energy_loss`` in cell 3 already used it).
     """
     parts = ["Energy Loss"]
     if name:

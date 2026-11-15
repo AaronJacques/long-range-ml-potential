@@ -127,14 +127,23 @@ def test_force_mode_log_columns(dataset_dir: Path, tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("k", "expected"), [(1, ["10", "20", "30", "40"]), (8, ["16", "24", "32", "40"])]
+)
 def test_step_logging_interval(
-    dataset_dir: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    dataset_dir: Path,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    k: int,
+    expected: list[str],
 ) -> None:
-    trainer = Trainer(_cfg("train.log_every_steps=10"), dataset_dir, tmp_path / "run")
+    # The log is read at the end of the first compiled call at or after each interval.
+    cfg = _cfg("train.log_every_steps=10", f"train.steps_per_execution={k}")
+    trainer = Trainer(cfg, dataset_dir, tmp_path / "run")
     with caplog.at_level(logging.INFO, logger="lrmlp.training"):
         trainer.train_epoch(1)
     steps = [r.getMessage() for r in caplog.records if "step" in r.getMessage()]
-    assert [m.split("step ")[1].split("/")[0] for m in steps] == ["10", "20", "30", "40"]
+    assert [m.split("step ")[1].split("/")[0] for m in steps] == expected
 
 
 # ------------------------------------------------------------------- 2./3. best, checkpoints
@@ -298,12 +307,13 @@ def _fit_weights(dataset_dir: Path, run_dir: Path, *overrides: str) -> list[np.n
     return _weights(trainer)
 
 
-@pytest.mark.parametrize("k", [4, 5])
+@pytest.mark.parametrize("k", [4, 5, 8])
 def test_steps_per_execution_equivalent(dataset_dir: Path, tmp_path: Path, k: int) -> None:
+    # C4-K4: bit-identical, with dropout 0.2 (smoke.toml); 48 steps are no multiple of 5.
     single = _fit_weights(dataset_dir, tmp_path / "k1", "train.steps_per_execution=1")
     multi = _fit_weights(dataset_dir, tmp_path / f"k{k}", f"train.steps_per_execution={k}")
     for a, b in zip(single, multi, strict=True):
-        np.testing.assert_allclose(a, b, rtol=0, atol=1e-7)
+        np.testing.assert_array_equal(a, b)
 
 
 def test_seed_reproducible(dataset_dir: Path, tmp_path: Path) -> None:
@@ -441,3 +451,102 @@ def test_deterministic_runs_identical(dataset_dir: Path, tmp_path: Path) -> None
     assert outs[0].files == outs[1].files
     for key in outs[0].files:
         np.testing.assert_array_equal(outs[0][key], outs[1][key])
+
+
+# --------------------------------------------------------------------------- 11. C4-K4 defaults
+
+
+def test_execution_defaults() -> None:
+    """C4-K4: K = 8 everywhere; XLA only in the four thesis presets."""
+    from lrmlp.config import TrainConfig
+
+    assert (TrainConfig().steps_per_execution, TrainConfig().jit_compile) == (8, False)
+    configs = Path(__file__).resolve().parents[1] / "configs"
+    for name in ("paracetamol", "aspirin", "ac-ala3-nhme", "stachyose"):
+        tc = load_config(configs / f"{name}.toml").train
+        assert (tc.steps_per_execution, tc.jit_compile) == (8, True), name
+    fixtures = SMOKE.parent
+    for path in (configs / "legacy-head.toml", SMOKE, fixtures / "golden_legacy.toml"):
+        assert load_config(path).train.jit_compile is False, path
+
+
+def test_xla_available_here() -> None:
+    from lrmlp.training import xla_available
+
+    assert xla_available() == (True, "")
+
+
+def test_xla_probe_reports_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    import tensorflow as tf
+
+    from lrmlp.training import xla_available
+
+    def no_xla(*args: Any, **kwargs: Any) -> Any:
+        raise tf.errors.UnimplementedError(None, None, "XLA is not built in\nmore text")
+
+    monkeypatch.setattr(tf, "function", no_xla)
+    assert xla_available.__wrapped__() == (False, "UnimplementedError: XLA is not built in")
+
+
+def test_jit_compile_falls_back_without_xla(
+    dataset_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: Any
+) -> None:
+    """C4-K4: without XLA the trainer warns, trains without XLA and records it."""
+    import lrmlp.training
+
+    monkeypatch.setattr(lrmlp.training, "xla_available", lambda: (False, "probe failed"))
+    with caplog.at_level(logging.WARNING, logger="lrmlp.training"):
+        trainer = Trainer(_cfg("train.epochs=1", "train.jit_compile=true"), dataset_dir, tmp_path)
+    assert "XLA is not available" in caplog.text and "probe failed" in caplog.text
+    assert trainer.config.train.jit_compile is False
+    assert trainer.run.read_config().train.jit_compile is False
+    assert trainer.fit().steps == 48
+
+
+# --------------------------------------------------------------------------- 12. C4-K5 eager
+
+
+@pytest.mark.parametrize("forces", [False, True])
+def test_eager_steps_match_compiled(dataset_dir: Path, tmp_path: Path, forces: bool) -> None:
+    """The step, loop and validation code gives the same epoch eagerly and compiled.
+
+    Run eagerly, the Python bodies of the compiled functions execute as plain code
+    (for coverage too); without dropout both paths agree to rounding.
+    """
+    import tensorflow as tf
+
+    overrides = (
+        "train.epochs=1",
+        "model.dropout_rate=0.0",
+        "train.steps_per_execution=5",
+        f"model.predict_forces={'true' if forces else 'false'}",
+        "train.p_force_start=0.5",
+        "train.p_force_limit=0.1",
+        "train.loss_weight_decay_steps=10",
+    )
+    compiled = Trainer(_cfg(*overrides), dataset_dir, tmp_path / "graph").fit()
+    tf.config.run_functions_eagerly(True)
+    try:
+        trainer = Trainer(_cfg(*overrides), dataset_dir, tmp_path / "eager")
+        eager = trainer.fit()
+    finally:
+        tf.config.run_functions_eagerly(False)
+    assert eager.steps == compiled.steps == 48
+    a, b = eager.history[0], compiled.history[0]
+    assert a.keys() == b.keys() == set(log_columns(forces))
+    for key in a.keys() - {"seconds", "epoch"}:
+        assert a[key] == pytest.approx(b[key], rel=1e-4), key
+    if forces:
+        assert a["train_force_mse"] > 0 and a["val_force_mse"] > 0
+
+
+def test_local_only_model_and_eval_batch_size(dataset_dir: Path, tmp_path: Path) -> None:
+    """Local-only model (Fig. 4.6); validation does not depend on molecules per call."""
+    cfg = _cfg("train.epochs=1", "model.use_long_range=false")
+    one = Trainer(cfg, dataset_dir, tmp_path / "one", eval_molecules_per_batch=1)
+    many = Trainer(cfg, dataset_dir, tmp_path / "many")
+    assert [t.name for t in one.model.inputs] == ["local_matrix", "local_numbers"]
+    assert one.validate()["val_energy_mse"] == pytest.approx(
+        many.validate()["val_energy_mse"], rel=1e-6
+    )
+    assert one.fit().steps == 48

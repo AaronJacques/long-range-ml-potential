@@ -72,7 +72,7 @@ def _k1(owner: str, name: str, value: int | str) -> None:
 
 @dataclass(frozen=True, slots=True)
 class GridConfig:
-    """Hierarchical cell grid and cutoff (thesis Sec. 4.2, Tab. 5.1).
+    """Hierarchical cell grid and cutoff (thesis Sec. 4.2 and 4.3.2, Tab. 5.1).
 
     Parameters
     ----------
@@ -142,7 +142,7 @@ class GridConfig:
 
 @dataclass(frozen=True, slots=True)
 class DataConfig:
-    """Raw data sources, sample selection and split (thesis Sec. 5.1, p. 40).
+    """Raw data sources, sample selection and split (thesis Sec. 4.3.1, p. 40).
 
     Parameters
     ----------
@@ -197,7 +197,7 @@ class DataConfig:
 
 @dataclass(frozen=True, slots=True)
 class ModelConfig:
-    """Network architecture (thesis Sec. 4.3-4.5, Fig. 4.2-4.6, Tab. 5.2).
+    """Network architecture (thesis Sec. 4.3.3, Fig. 4.2-4.6, Tab. 5.2).
 
     Parameters
     ----------
@@ -262,7 +262,7 @@ class ModelConfig:
 
 @dataclass(frozen=True, slots=True)
 class TrainConfig:
-    """Optimisation, loss weighting and bookkeeping (thesis Sec. 4.6, Tab. 5.2).
+    """Optimisation, loss weighting and bookkeeping (thesis Sec. 4.3.4, Tab. 5.2).
 
     Parameters
     ----------
@@ -291,11 +291,22 @@ class TrainConfig:
     deterministic : bool
         Request deterministic TensorFlow ops.
     steps_per_execution : int
-        Training steps per compiled call (purely technical).
+        Training steps per compiled call (purely technical). Default 8: the result
+        is bit-identical to one step per call (also with dropout and with XLA) and
+        training is faster (``docs/benchmarks.md``).
     jit_compile : bool
-        Compile the training step with XLA (purely technical).
+        Compile the training step with XLA (purely technical). Default ``False``;
+        the thesis presets (``configs/{paracetamol,aspirin,ac-ala3-nhme,
+        stachyose}.toml``) set ``true`` (about 2× faster, ``docs/benchmarks.md``).
+        Without dropout, XLA and non-XLA runs agree to rounding. **With dropout
+        (``model.dropout_rate > 0``), XLA draws other dropout masks** than the plain
+        step: statistically equivalent, but not bit-identical to a non-XLA run with
+        the same seed. If XLA is not available on the platform, the trainer logs a
+        warning and trains without XLA (recorded as ``false`` in ``config.json``).
     log_every_steps : int
-        Interval of the step-level progress log.
+        Interval of the step-level progress log. The log is written at the end of
+        the first compiled call (``steps_per_execution`` steps) that reaches the
+        next multiple of the interval.
     checkpoints : {"best_and_last", "all"}
         Keep only the best and the last checkpoint, or one per epoch. The best epoch
         is the one with the lowest validation MSE (p. 52).
@@ -317,7 +328,7 @@ class TrainConfig:
     shuffle_buffer: int = 1000
     seed: int = 42
     deterministic: bool = False
-    steps_per_execution: int = 1
+    steps_per_execution: int = 8
     jit_compile: bool = False
     log_every_steps: int = 1000
     checkpoints: Literal["all", "best_and_last"] = "best_and_last"

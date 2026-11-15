@@ -18,7 +18,7 @@ whose atom axis is ``None``: changing the number of molecules or atoms per call
 does not retrace it.
 
 The molecular energy is the sum of the atomic energies, E = Σ_i E_i (thesis
-Eq. 4.1); the energy is always column 0 of the network output (bug B05 of the
+Eq. 2.7, p. 21); the energy is always column 0 of the network output (bug B05 of the
 legacy ``evaluate.py`` summed all outputs).
 
 Notes
@@ -391,7 +391,7 @@ class Potential:
         max_z = self.config.grid.max_atomic_number
         chunk = max(1, min(_MAX_CHUNK, math.ceil(n_frames / (4 * workers))))
         tasks = [
-            _ChunkTask(pos[lo : lo + chunk], z, self.config.grid, species, "positions", lo, 0)
+            _ChunkTask(pos[lo : lo + chunk], z, self.config.grid, species, None, lo, 0)
             for lo in range(0, n_frames, chunk)
         ]
         results: list[Any] = _run_tasks(tasks, workers)

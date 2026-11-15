@@ -68,7 +68,7 @@ the exit code), 1 = an equivalence tolerance was violated, 2 = invalid input.
 |---|---|
 | `--quick`, new / legacy | ~50 s / ~20 s |
 | `--quick` equivalence check | ~25 s |
-| full, new / legacy | ~4 min / ~2.5 min (measured on a loaded machine; `metadata.runtime_s`) |
+| full, new / legacy | ~2 min / ~2.5 min (quiet machine, C4 reference run; `metadata.runtime_s`) |
 | full equivalence check | ~1 min |
 
 ## What is measured

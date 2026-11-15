@@ -5,7 +5,7 @@ This module replaces the raw-data part of ``create_dataset`` in the legacy
 
 File layout
 -----------
-An ``.npz`` archive with the keys of the sGDML datasets [16] (thesis Sec. 5.1):
+An ``.npz`` archive with the keys of the sGDML datasets [16] (thesis Sec. 4.3.1):
 
 ``E``
     Energies in kcal/mol, shape (S,) or (S, 1); always returned flat.

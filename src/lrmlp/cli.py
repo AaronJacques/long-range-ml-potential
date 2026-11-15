@@ -293,7 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = command(
         "predict",
         "predict energies (and forces) of new frames",
-        "Predict molecular energies E = sum_i E_i (Eq. 4.1) with a trained run.\n"
+        "Predict molecular energies E = sum_i E_i (Eq. 2.7, p. 21) with a trained run.\n"
         "Input: .npz with R (S, N, 3) in Angstrom and z (N,).\n"
         "Output: .npz with E (S,) in kcal/mol and, for force models (experimental), "
         "F (S, N, 3).",

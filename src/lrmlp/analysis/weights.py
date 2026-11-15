@@ -1,4 +1,4 @@
-"""Weight distributions of two trained runs (thesis Fig. 5.3, Sec. 7.5).
+"""Weight distributions of two trained runs (thesis Fig. 5.3, p. 55).
 
 Replaces ``plot_stacked_weight_distribution`` of
 ``Neural-Network/weigtht_distribution.py@9413bfd`` (B17). The figure is the same:
@@ -140,7 +140,7 @@ def plot_weight_distribution(
     labels: tuple[str, str] = ("With", "Without"),
     title: str | None = None,
 ) -> Path:
-    """Plot the weight distributions of two runs (thesis Fig. 5.3, Sec. 7.5).
+    """Plot the weight distributions of two runs (thesis Fig. 5.3, p. 55).
 
     Parameters
     ----------

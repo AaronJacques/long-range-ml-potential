@@ -216,18 +216,20 @@ def summary_rows(legacy: dict[str, Any], new: dict[str, Any]) -> list[dict[str, 
     if lt and nt:
         lrate = get(lt, "variants", "legacy", "window", "steps_per_s")
         label = f"{nt['n_train']} train molecules, |B| = 1"
+        defaults = train_defaults(new)
         for v in nt["variants"].values():
-            default = v["steps_per_execution"] == 1 and not v["jit_compile"]
+            setting = (v["steps_per_execution"], bool(v["jit_compile"]))
+            tags = [tag for tag, value in defaults.items() if value == setting]
             name = (
                 f"Training, steps/s, steps_per_execution={v['steps_per_execution']}, "
                 f"jit_compile={str(v['jit_compile']).lower()}"
             )
             rate_row(
-                name + (" (default)" if default else ""),
+                name + (f" ({', '.join(tags)})" if tags else ""),
                 label,
                 lrate,
                 get(v, "window", "steps_per_s"),
-                1.5 if default else None,
+                1.5 if tags else None,
             )
         rate_row(
             "Validation, mol/s (no gradients)",
@@ -266,6 +268,28 @@ def summary_rows(legacy: dict[str, Any], new: dict[str, Any]) -> list[dict[str, 
         f, t = row["factor"], row["target"]
         row["met"] = None if t is None or f is None else f >= t
     return rows
+
+
+def train_defaults(new: dict[str, Any]) -> dict[str, tuple[int, bool]]:
+    """Execution settings of the measured code: label -> (steps_per_execution, jit_compile).
+
+    Result files without ``metadata.train_defaults`` (older runs) had K = 1 without XLA.
+    """
+    recorded = get(new, "metadata", "train_defaults")
+    if not recorded:
+        return {"default": (1, False)}
+
+    def pair(d: dict[str, Any]) -> tuple[int, bool]:
+        return int(d["steps_per_execution"]), bool(d["jit_compile"])
+
+    out = {"TrainConfig default": pair(recorded["TrainConfig"])}
+    presets = {pair(d) for d in recorded.get("presets", {}).values()}
+    if len(presets) == 1:
+        out["thesis presets"] = presets.pop()
+    else:
+        for name, d in recorded.get("presets", {}).items():
+            out[f"preset {name}"] = pair(d)
+    return out
 
 
 def recommendation(new: dict[str, Any], eq: dict[str, Any] | None) -> dict[str, Any]:
@@ -578,13 +602,18 @@ def recommendation_section(rec: dict[str, Any], new: dict[str, Any]) -> list[str
         f"{pct(g['spe8_at_xla1'])} with XLA.",
         "",
         f"Rule: a default changes only with a gain of at least {MIN_GAIN * 100:.0f} % and a "
-        "passed equivalence check (plan section 4.4). Defaults in `src/` are **not** changed "
-        "by this benchmark.",
+        "passed equivalence check (plan section 4.4). The benchmark itself never changes "
+        "defaults. Settings of the measured code: "
+        + "; ".join(
+            f"{tag} `steps_per_execution = {k}`, `jit_compile = {str(x).lower()}`"
+            for tag, (k, x) in train_defaults(new).items()
+        )
+        + ".",
         "",
         f"* `train.jit_compile`: gain {pct(g['xla_at_spe1'])} / {pct(g['xla_at_spe8'])} "
         f"(K = 1 / 8), equivalence {eq_text[rec['xla_equivalent']]} → "
         + (
-            "**recommend `jit_compile = true`** as the new default."
+            "**recommend `jit_compile = true`** (where it is set: see the settings above)."
             if rec["recommend_xla"]
             else "keep `jit_compile = false`."
             if rec["xla_equivalent"] is not None or not rec["xla_fast"]

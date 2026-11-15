@@ -273,3 +273,21 @@ def test_cli_tune_dry_run(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> N
         assert cli.main(argv) == 0
     assert "15552 combination(s)" in caplog.text
     assert cli.main([*argv, "--max-trials", "3"]) == 0
+
+
+def test_energy_only_example_space(tmp_path: Path) -> None:
+    """C4-F34: the energy-only example trains the method of the thesis (no force mode)."""
+    energy = REPO / "configs" / "hparam_search.energy.toml"
+    space = load_space(energy)
+    assert len(space) == 3 * 4 * 4
+    assert set(space.keys) == {
+        "train.learning_rate",
+        "train.lr_decay_steps",
+        "train.lr_decay_rate",
+        "model.predict_forces",
+    }
+    results = run_search(SMOKE, energy, dry_run=True, run_root=tmp_path)
+    assert len(results) == 48
+    assert all(t.overrides["model.predict_forces"] is False for t in results)
+    for combo in list(space.combinations())[:3]:
+        assert load_config(SMOKE, combo).model.predict_forces is False

@@ -190,8 +190,8 @@ the legacy code (`Dataset.py:475-477` at commit `9413bfd`):
 
 ```python
 train = df.sample(frac=1 - (v + t), random_state=seed)
-val   = df.drop(train.index).sample(frac=v / (v + t), random_state=seed)
-test  = df.drop(train.index).drop(val.index)
+val = df.drop(train.index).sample(frac=v / (v + t), random_state=seed)
+test = df.drop(train.index).drop(val.index)
 ```
 
 with v = `val_fraction`, t = `test_fraction`, seed = `split_seed` (default
@@ -287,8 +287,8 @@ which also selects the best epoch.
 
 `lrmlp evaluate --run R [--split test] [--epoch best]` writes
 `evaluation_<split>_<epoch>.json` into the run directory (`<epoch>` is the
-resolved epoch number). With `--json OUT` the same object is also written to
-`OUT` (`-` prints it).
+resolved epoch number). With `--json OUT` the metrics, i.e. the same object
+without `dataset` and `batch_size`, are also written to `OUT` (`-` prints them).
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -300,6 +300,8 @@ resolved epoch number). With `--json OUT` the same object is also written to
 | `n_molecules` | int | molecules evaluated |
 | `epoch` | int | evaluated checkpoint |
 | `split` | str | evaluated split |
+| `dataset` | str | dataset directory that was evaluated (as resolved by `lrmlp evaluate`); only in the run file, not in `--json OUT` |
+| `batch_size` | int | molecules per model call; only in the run file, not in `--json OUT` |
 | `dataset_matches_run` | bool | only present (as `false`) if the dataset differs from the run's `dataset.json` |
 | `dataset_mismatch` | list of str | only present with `dataset_matches_run`: the differing metadata fields |
 

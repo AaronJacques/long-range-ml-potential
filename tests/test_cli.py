@@ -298,6 +298,15 @@ def test_evaluate_json(pipeline: Pipeline) -> None:
     assert (pipeline.run / "evaluation_test_1.json").is_file()
 
 
+def test_evaluate_json_vs_run_file(pipeline: Pipeline) -> None:
+    """C4-F31 (docs/data-format.md): the run file = ``--json OUT`` + dataset, batch_size."""
+    metrics = json.loads(pipeline.eval_json.read_text())
+    stored = json.loads((pipeline.run / "evaluation_test_1.json").read_text())
+    assert set(stored) - set(metrics) == {"dataset", "batch_size"}
+    assert {k: stored[k] for k in metrics} == metrics
+    assert isinstance(stored["dataset"], str) and isinstance(stored["batch_size"], int)
+
+
 def test_evaluate_table_and_json_stdout(
     pipeline: Pipeline, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -1,4 +1,4 @@
-"""Training of the atomic energy network (thesis Sec. 4.6, Eq. 4.21, 4.22 and 4.10).
+"""Training of the atomic energy network (thesis Sec. 4.3.4, Eq. 4.21, 4.22 and 4.10).
 
 This module replaces ``Neural-Network/Training.py@9413bfd``. The method is
 unchanged:
@@ -25,10 +25,14 @@ What is new is the execution:
   axis ``None``), so it is traced once per run and optionally XLA-compiled
   (``train.jit_compile``). ``train.steps_per_execution`` = K runs K steps per call
   in a graph loop over the dataset iterator; the result is identical to K single
-  steps. With dropout active, the XLA-compiled step draws different (equally
-  distributed) dropout masks than the plain step; without dropout both agree to
-  rounding. Losses are accumulated in :class:`keras.metrics.Mean` and read on the host
-  only every ``train.log_every_steps`` steps and at the end of an epoch.
+  steps (bit-identical; default K = 8). With dropout active, the XLA-compiled step
+  draws different (equally distributed) dropout masks than the plain step, so XLA
+  runs are statistically equivalent but not bit-identical to non-XLA runs; without
+  dropout both agree to rounding. If XLA is not available (:func:`xla_available`),
+  ``train.jit_compile = true`` falls back to the plain step with a warning, and
+  ``config.json`` records ``jit_compile = false``. Losses are accumulated in
+  :class:`keras.metrics.Mean` and read on the host only every
+  ``train.log_every_steps`` steps and at the end of an epoch.
 * The model is called with ``training=True``, so dropout is active (B02). The
   legacy behaviour is ``model.dropout_rate = 0`` (profile ``legacy-head``).
 * Seeds: ``keras.utils.set_random_seed(train.seed)`` and a seeded shuffle (B11);
@@ -54,6 +58,7 @@ from __future__ import annotations
 
 import csv
 import dataclasses
+import functools
 import logging
 import math
 import os
@@ -86,6 +91,7 @@ __all__ = [
     "check_model_inputs",
     "log_columns",
     "train",
+    "xla_available",
 ]
 
 logger = logging.getLogger(__name__)
@@ -204,6 +210,43 @@ def check_model_inputs(
         )
 
 
+@functools.cache
+def xla_available() -> tuple[bool, str]:
+    """Check once per process whether XLA can compile a function on this platform.
+
+    Returns
+    -------
+    tuple of (bool, str)
+        ``(True, "")`` if a small :func:`tf.function` with ``jit_compile=True``
+        compiles and runs, else ``(False, reason)`` with the error message.
+    """
+
+    def probe(x: tf.Tensor) -> tf.Tensor:
+        return tf.reduce_sum(tf.square(x))
+
+    try:
+        tf.function(probe, jit_compile=True)(tf.ones((2,), tf.float32)).numpy()
+    except Exception as err:  # every failure means "no XLA here"
+        first = str(err).strip().splitlines()
+        return False, f"{type(err).__name__}: {first[0] if first else ''}"
+    return True, ""
+
+
+def _resolve_jit_compile(config: ExperimentConfig) -> ExperimentConfig:
+    """Fall back to ``train.jit_compile = false`` (with a warning) if XLA is unavailable."""
+    if not config.train.jit_compile:
+        return config
+    ok, reason = xla_available()
+    if ok:
+        return config
+    logger.warning(
+        "train.jit_compile = true, but XLA is not available on this platform (%s); "
+        "training without XLA (config.json records jit_compile = false)",
+        reason,
+    )
+    return dataclasses.replace(config, train=dataclasses.replace(config.train, jit_compile=False))
+
+
 def _open_dataset(config: ExperimentConfig, dataset_dir: str | Path | None) -> DescriptorDataset:
     path = Path(dataset_dir) if dataset_dir is not None else config.data.output_dir
     assert path is not None  # filled in by ExperimentConfig
@@ -232,8 +275,9 @@ def _open_dataset(config: ExperimentConfig, dataset_dir: str | Path | None) -> D
 class Trainer:
     """Training loop of the thesis (Eq. 4.21, 4.22, 4.10) with compiled steps.
 
-    Construction performs, in this order: seeding, loading and checking the
-    dataset, resolving K1, building the model, taking over ``initial_weights``
+    Construction performs, in this order: the XLA check (``train.jit_compile``
+    falls back to ``false`` with a warning if XLA is unavailable), seeding, loading
+    and checking the dataset, resolving K1, building the model, taking over ``initial_weights``
     and creating the run directory. :meth:`fit` then trains for
     ``train.epochs`` epochs.
 
@@ -291,6 +335,7 @@ class Trainer:
         model: keras.Model | None = None,
         eval_molecules_per_batch: int | None = None,
     ) -> None:
+        config = _resolve_jit_compile(config)
         tc = config.train
         keras.utils.set_random_seed(tc.seed)
         if tc.deterministic:

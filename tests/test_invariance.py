@@ -14,7 +14,7 @@ The tests are deliberately honest about what the method guarantees:
   neighbour list, and order and cells depend on the axis-aligned grid of
   Eq. 4.11. The energy therefore changes in general under rotations and under
   permutations that reorder the atoms inside a cell. These tests are
-  ``xfail(strict=False)``.
+  ``xfail(strict=False, raises=AssertionError)``: any other exception is a failure.
 * **Not applicable** (deviation A09): forces are a direct network output, not
   −∂E/∂x, so a finite-difference gradient check does not apply. The alignment of
   force labels and atoms (B01) is tested in ``test_dataset.py`` and
@@ -191,7 +191,7 @@ def test_rotation_local_neighbourhood_invariant(
         np.testing.assert_allclose(gram_a, gram_b, rtol=1e-9, atol=1e-12)
 
 
-@pytest.mark.xfail(strict=False, reason=A10_REASON)
+@pytest.mark.xfail(strict=False, raises=AssertionError, reason=A10_REASON)
 @pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize("seed", ROTATION_SEEDS)
 def test_rotation_energy(
@@ -318,7 +318,7 @@ def test_permutation_energy_cell_order_preserving(
     )
 
 
-@pytest.mark.xfail(strict=False, reason=A10_REASON)
+@pytest.mark.xfail(strict=False, raises=AssertionError, reason=A10_REASON)
 @pytest.mark.parametrize("mode", MODES)
 def test_permutation_energy_arbitrary(
     mode: str, potentials: dict[str, Potential], dense_molecule: tuple[np.ndarray, np.ndarray]

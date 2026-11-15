@@ -251,3 +251,20 @@ def test_predict_n_workers_errors(energy_run: RunDirectory, frames: dict[str, np
         pot.predict(dense, frames["z"], n_workers=2)
     with pytest.raises(ValueError, match="n_workers"):
         pot.predict(frames["R"][:2], frames["z"], n_workers=-1)
+
+
+def test_predict_n_workers_error_message_as_serial(
+    energy_run: RunDirectory, frames: dict[str, np.ndarray]
+) -> None:
+    """C3-F29: the parallel path reports a bad frame exactly like the serial path."""
+    pot = Potential.from_run(energy_run.path)
+    pos = frames["R"][:20].copy()
+    pos[13, 5] = pos[13, 4]  # two coincident atoms (B12)
+    messages = []
+    for n_workers in (1, 2):
+        with pytest.raises(ValueError) as info:
+            pot.predict(pos, frames["z"], n_workers=n_workers)
+        messages.append(str(info.value))
+    assert messages[0] == messages[1]
+    assert messages[0].startswith("frame 13: ") and "coincide" in messages[0]
+    assert "global frame" not in messages[1] and "positions" not in messages[1]

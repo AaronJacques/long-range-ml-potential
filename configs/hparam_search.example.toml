@@ -1,6 +1,10 @@
 # Hyperparameter search space of the legacy HyperparameterTester.py@9413bfd (B04),
 # reproduced exactly: 3·4·4·4·3·3·3·3 = 15 552 combinations.
 #
+# NOTE: it trains the experimental force mode (see "model.predict_forces" below).
+# The recommended starting point for the energy-only method of the thesis is
+# configs/hparam_search.energy.toml.
+#
 # That is far too many to train completely: use --max-trials, e.g.
 #   lrmlp tune --config configs/aspirin.toml --space configs/hparam_search.example.toml \
 #              --max-trials 10
@@ -24,8 +28,13 @@
 "train.p_energy_limit" = [1.0, 2.0, 3.0]
 "train.p_force_start" = [100.0, 500.0, 1000.0]
 "train.p_force_limit" = [1.0, 2.0, 3.0]
-# The legacy search trained the force model; without it the p_* axes have no effect.
-# The force mode is experimental (deviation A09) and not the method of the thesis.
+# When HyperparameterTester.py was written (c5b9df0, 2024-05-21; still at 0c902e8,
+# 2024-06-04), Constants.Model.predict_only_energy was False, i.e. the legacy search
+# trained the force model. At 9413bfd (the commit cited above) it is True, and the
+# p_* axes have no effect there. This file keeps the force model, because without
+# it the p_* axes would be meaningless. Every trial therefore trains the
+# experimental force mode (deviation A09), NOT the method of the thesis; for the
+# thesis method start from configs/hparam_search.energy.toml.
 # One value only, so the number of combinations is unchanged.
 "model.predict_forces" = [true]
 

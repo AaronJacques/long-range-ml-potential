@@ -1,6 +1,6 @@
 """Evaluation of a trained run on a dataset split (replaces ``Neural-Network/evaluate.py``).
 
-:func:`evaluate` reproduces the test metric of the thesis (Tab. 5.3, p. 52): the
+:func:`evaluate` reproduces the test metric of the thesis (Tab. 5.3, p. 53): the
 checkpoint of the epoch with the lowest validation energy MSE (``best.json``,
 deviation A12) is evaluated on the test split, and the mean absolute error of the
 molecular energies is reported,
