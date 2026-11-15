@@ -451,7 +451,7 @@ are given.
 | B09 | `Training.py:20-24` | Run folder named by time of day only (`%H-%M-%S`, no date), "DS" holds the learning rate, no separator before the time: collisions append to another run's log | `new_run_dir` with date and a unique suffix |
 | B10 | `Constants.py:24-26`, `Training.py:25`, `Dataset.py:688-690`, `evaluate.py:49-53`, `weigtht_distribution.py`, notebook | Paths relative to the working directory, hard-coded Windows paths | Paths relative to the configuration file, CLI arguments |
 | B11 | `Dataset.py:658` | Shuffling and initialisation without seeds | `train.seed`, seeded shuffle |
-| B12 | `Dataset.py:246, 259, 328` | Coincident atoms give `1/0` or are skipped silently | `ValueError` for two distinct atoms at distance 0 (A14) |
+| B12 | `Dataset.py:246, 259, 328` | A second atom at the same position is skipped silently as if it were the atom itself: its row is missing, no error (A14; the `1/0` in `get_s` is unreachable because of this) | `ValueError` for two distinct atoms at distance 0 (A14) |
 | B13 | `Dataset.py:393-394` | Padding of an empty entry gives shape (1, n, w) float64 | (0, n, w) float32 |
 | B14 | `Model.py:12-15, 23, 33` | `Lambda` layers and `tf.linalg` on symbolic tensors, `get_shape()`: breaks under Keras 3 | Own layers, `.weights.h5` checkpoints |
 | B15 | `Training.py:141-142, 162` | `keras.losses.MSE` on scalars: breaks under Keras 3 | Explicit ops |

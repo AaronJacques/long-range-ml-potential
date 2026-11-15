@@ -161,12 +161,6 @@ cython_debug/
 
 .DS_Store
 
-# Datasets
-Datasets
-
-# Checkpoints
-Checkpoints
-
 # lrmlp: project venv, local data and run outputs
 .venv/
 /data/
