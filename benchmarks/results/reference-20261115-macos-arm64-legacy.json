@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "impl": "legacy",
+  "metadata": {
+    "started": "2026-11-15T08:23:39+00:00",
+    "runtime_s": 142.50840249998146,
+    "note": "preliminary (machine under load)",
+    "loadavg_start": [
+      17.54,
+      24.75,
+      15.76
+    ],
+    "loadavg_end": [
+      4.92,
+      16.46,
+      13.77
+    ],
+    "command": [
+      "python",
+      "benchmarks/run_benchmarks.py",
+      "--impl",
+      "legacy",
+      "--suite",
+      "all",
+      "--note",
+      "preliminary (machine under load)",
+      "--out",
+      "benchmarks/results/reference-20261115-macos-arm64-legacy.json"
+    ],
+    "platform": "macOS-27.2-arm64-arm-64bit",
+    "system": "Darwin",
+    "machine": "arm64",
+    "cpu": "Apple M4",
+    "cpu_count": 10,
+    "memory_bytes": 25769803776,
+    "python": "3.12.10",
+    "numpy": "1.26.4",
+    "git_sha": "52de2c975acd5ce8caf131298cc76a4a7c12794c",
+    "git_dirty_src_or_benchmarks": true,
+    "legacy_ref": "9413bfd",
+    "legacy_commit": "9413bfd17130166dca96f995b66c358019c6b35a",
+    "tensorflow": "2.21.0",
+    "keras": "tf_keras 2.21.0",
+    "pandas": "2.1.4",
+    "intra_op_threads": 0,
+    "inter_op_threads": 0
+  },
+  "params": {
+    "quick": false,
+    "repeats": 3,
+    "workers": 10,
+    "suites": [
+      "prep",
+      "input",
+      "train",
+      "infer"
+    ],
+    "profile": "configs/legacy-head.toml",
+    "split": [
+      0.1,
+      0.1,
+      42
+    ],
+    "shuffle_buffer": 1000,
+    "warmup_epochs": 1,
+    "timed_epochs": 2,
+    "infer_batch_size": 256,
+    "train_variants": [
+      [
+        1,
+        false
+      ],
+      [
+        1,
+        true
+      ],
+      [
+        8,
+        false
+      ],
+      [
+        8,
+        true
+      ]
+    ],
+    "legacy_model_seed": 1234
+  },
+  "workloads": {
+    "aspirin": {
+      "generator": "tests/golden/synthetic.py:aspirin_like",
+      "seed": 0,
+      "n_frames": 2000,
+      "n_atoms": 21,
+      "grid": "G-A",
+      "grid_size": 1.0,
+      "max_local_level": 6,
+      "sha256": "376806f25caf911fbb687dfb762251867c1a949d1455e681f7594db5ced34319"
+    },
+    "stachyose": {
+      "generator": "tests/golden/synthetic.py:stachyose_like",
+      "seed": 1,
+      "n_frames": 200,
+      "n_atoms": 87,
+      "grid": "G-C",
+      "grid_size": 2.0,
+      "max_local_level": 4,
+      "sha256": "3fbaad87745f1f7aa053c1abeb5969b1a4e2a085897b2ce8f5296b11bb009ce4"
+    },
+    "aspirin[:1000]": {
+      "generator": "tests/golden/synthetic.py:aspirin_like",
+      "seed": 0,
+      "n_frames": 1000,
+      "n_atoms": 21,
+      "grid": "G-A",
+      "grid_size": 1.0,
+      "max_local_level": 6,
+      "sha256": "4359a4cba89b8a076f4627e4835d391906e4b6c09011aa7374d2b1f2009b986f"
+    }
+  },
+  "results": {
+    "prep": {
+      "aspirin": {
+        "serial": {
+          "median_s": 8.632119917019736,
+          "times_s": [
+            8.59579345799284,
+            8.632119917019736,
+            8.714466458011884
+          ],
+          "n": 2000,
+          "mol_per_s": 231.69279611797907
+        },
+        "parallel": null,
+        "bytes_per_molecule": {
+          "disk": 5459.8015,
+          "ram": 107628.0
+        },
+        "n_max": [
+          20,
+          11
+        ],
+        "format": "pandas DataFrame, .pkl.gzip, padded float32 arrays per molecule"
+      },
+      "stachyose": {
+        "serial": {
+          "median_s": 17.91047074997914,
+          "times_s": [
+            17.936116458004108,
+            17.91047074997914,
+            17.88280512500205
+          ],
+          "n": 200,
+          "mol_per_s": 11.166652333816124
+        },
+        "parallel": null,
+        "bytes_per_molecule": {
+          "disk": 109286.965,
+          "ram": 2298912.0
+        },
+        "n_max": [
+          85,
+          58
+        ],
+        "format": "pandas DataFrame, .pkl.gzip, padded float32 arrays per molecule"
+      }
+    },
+    "input": {
+      "aspirin": {
+        "split": "train",
+        "load": {
+          "median_s": 0.1876392500125803,
+          "times_s": [
+            0.18606420900323428,
+            0.20158287498634309,
+            0.1876392500125803
+          ]
+        },
+        "epoch": {
+          "median_s": 0.22261600001365878,
+          "times_s": [
+            0.22261600001365878,
+            0.22283399998559617,
+            0.2212473750114441
+          ],
+          "n": 1600,
+          "mol_per_s": 7187.264167453511
+        },
+        "pipeline": "from_generator over df.iterrows(), shuffle 1000, prefetch"
+      }
+    },
+    "train": {
+      "aspirin": {
+        "n_train": 1600,
+        "n_val": 200,
+        "n_max": [
+          20,
+          11
+        ],
+        "epochs_per_window": 2,
+        "start_training_total_s": 41.60330800001975,
+        "variants": {
+          "legacy": {
+            "steps_per_execution": 1,
+            "jit_compile": false,
+            "warmup_s": [
+              7.369522666995181
+            ],
+            "epoch_times_s": [
+              7.369522666995181,
+              5.268486750021111,
+              5.281823792000068,
+              5.3633565840136725,
+              5.332490166008938,
+              5.262907333002659,
+              5.2550533339963295
+            ],
+            "window": {
+              "median_s": 10.55031054202118,
+              "times_s": [
+                10.55031054202118,
+                10.69584675002261,
+                10.517960666998988
+              ],
+              "n": 3200,
+              "steps_per_s": 303.3086075764893
+            }
+          }
+        },
+        "validation": {
+          "median_s": 0.19363816699478775,
+          "times_s": [
+            0.1937375410052482,
+            0.19329066699719988,
+            0.19301641697529703,
+            0.19371116597903892,
+            0.19363816699478775,
+            0.19257133299834095,
+            0.19571108400123194
+          ],
+          "n": 200,
+          "mol_per_s": 1032.8542306712886
+        }
+      }
+    },
+    "infer": {
+      "aspirin": {
+        "n_molecules": 1000,
+        "n_max": [
+          20,
+          11
+        ],
+        "batch_size": 1,
+        "without_descriptors": {
+          "median_s": 1.0171091250085738,
+          "times_s": [
+            1.0297317079966888,
+            1.0171091250085738,
+            0.9314020419842564
+          ],
+          "n": 999,
+          "mol_per_s": 982.1954945017122
+        },
+        "evaluate_model_total": {
+          "median_s": 1.6051332500064746,
+          "times_s": [
+            1.6907687909842934,
+            1.6051332500064746,
+            1.5143882499833126
+          ],
+          "n": 1000,
+          "mol_per_s": 623.0012368106924
+        },
+        "create_dataset": {
+          "median_s": 4.340962167014368,
+          "times_s": [
+            4.340962167014368,
+            4.43372066700249,
+            4.336395458987681
+          ],
+          "n": 1000,
+          "mol_per_s": 230.36367550002888
+        },
+        "with_descriptors": {
+          "median_s": 5.946095417020842,
+          "n": 1000,
+          "mol_per_s": 168.17759048021256,
+          "composition": "median create_dataset + median evaluate_model (incl. load)"
+        },
+        "note": "without_descriptors: evaluate.py test_step loop, first molecule (tf.function tracing) excluded"
+      }
+    }
+  }
+}

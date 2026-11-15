@@ -1,0 +1,411 @@
+{
+  "schema_version": 1,
+  "impl": "new",
+  "metadata": {
+    "started": "2026-11-15T08:19:59+00:00",
+    "runtime_s": 217.83199649999733,
+    "note": "preliminary (machine under load)",
+    "loadavg_start": [
+      4.93,
+      7.81,
+      7.03
+    ],
+    "loadavg_end": [
+      17.54,
+      24.75,
+      15.76
+    ],
+    "command": [
+      "python",
+      "benchmarks/run_benchmarks.py",
+      "--impl",
+      "new",
+      "--suite",
+      "all",
+      "--note",
+      "preliminary (machine under load)",
+      "--out",
+      "benchmarks/results/reference-20261115-macos-arm64-new.json"
+    ],
+    "platform": "macOS-27.2-arm64-arm-64bit",
+    "system": "Darwin",
+    "machine": "arm64",
+    "cpu": "Apple M4",
+    "cpu_count": 10,
+    "memory_bytes": 25769803776,
+    "python": "3.12.10",
+    "numpy": "1.26.4",
+    "git_sha": "52de2c975acd5ce8caf131298cc76a4a7c12794c",
+    "git_dirty_src_or_benchmarks": true,
+    "legacy_ref": "9413bfd",
+    "legacy_commit": "9413bfd17130166dca96f995b66c358019c6b35a",
+    "tensorflow": "2.21.0",
+    "keras": "3.15.1",
+    "lrmlp": "0.1.0",
+    "intra_op_threads": 0,
+    "inter_op_threads": 0
+  },
+  "params": {
+    "quick": false,
+    "repeats": 3,
+    "workers": 10,
+    "suites": [
+      "prep",
+      "input",
+      "train",
+      "infer"
+    ],
+    "profile": "configs/legacy-head.toml",
+    "split": [
+      0.1,
+      0.1,
+      42
+    ],
+    "shuffle_buffer": 1000,
+    "warmup_epochs": 1,
+    "timed_epochs": 2,
+    "infer_batch_size": 256,
+    "train_variants": [
+      [
+        1,
+        false
+      ],
+      [
+        1,
+        true
+      ],
+      [
+        8,
+        false
+      ],
+      [
+        8,
+        true
+      ]
+    ],
+    "legacy_model_seed": 1234
+  },
+  "workloads": {
+    "aspirin": {
+      "generator": "tests/golden/synthetic.py:aspirin_like",
+      "seed": 0,
+      "n_frames": 2000,
+      "n_atoms": 21,
+      "grid": "G-A",
+      "grid_size": 1.0,
+      "max_local_level": 6,
+      "sha256": "376806f25caf911fbb687dfb762251867c1a949d1455e681f7594db5ced34319"
+    },
+    "stachyose": {
+      "generator": "tests/golden/synthetic.py:stachyose_like",
+      "seed": 1,
+      "n_frames": 200,
+      "n_atoms": 87,
+      "grid": "G-C",
+      "grid_size": 2.0,
+      "max_local_level": 4,
+      "sha256": "3fbaad87745f1f7aa053c1abeb5969b1a4e2a085897b2ce8f5296b11bb009ce4"
+    },
+    "aspirin[:1000]": {
+      "generator": "tests/golden/synthetic.py:aspirin_like",
+      "seed": 0,
+      "n_frames": 1000,
+      "n_atoms": 21,
+      "grid": "G-A",
+      "grid_size": 1.0,
+      "max_local_level": 6,
+      "sha256": "4359a4cba89b8a076f4627e4835d391906e4b6c09011aa7374d2b1f2009b986f"
+    }
+  },
+  "results": {
+    "prep": {
+      "aspirin": {
+        "serial": {
+          "median_s": 0.5649783330154605,
+          "times_s": [
+            0.567223375022877,
+            0.5596035829803441,
+            0.5649783330154605
+          ],
+          "n": 2000,
+          "mol_per_s": 3539.958761472133
+        },
+        "parallel": {
+          "median_s": 1.1175129580078647,
+          "times_s": [
+            1.0905600000114646,
+            1.224652499979129,
+            1.1175129580078647
+          ],
+          "n": 2000,
+          "mol_per_s": 1789.6884198687965,
+          "n_workers": 10
+        },
+        "bytes_per_molecule": {
+          "disk": 12248.522,
+          "ram": 12246.012
+        },
+        "n_max": [
+          20,
+          11
+        ],
+        "format": "directory of .npy arrays (mmap), compact species counts"
+      },
+      "stachyose": {
+        "serial": {
+          "median_s": 2.7230599999893457,
+          "times_s": [
+            2.914630458020838,
+            2.7230599999893457,
+            0.9128401249763556
+          ],
+          "n": 200,
+          "mol_per_s": 73.44678413284413
+        },
+        "parallel": {
+          "median_s": 26.42339591597556,
+          "times_s": [
+            25.988858833996346,
+            26.42339591597556,
+            26.523803874995792
+          ],
+          "n": 200,
+          "mol_per_s": 7.569049816154788,
+          "n_workers": 10
+        },
+        "bytes_per_molecule": {
+          "disk": 230164.22,
+          "ram": 230139.12
+        },
+        "n_max": [
+          85,
+          58
+        ],
+        "format": "directory of .npy arrays (mmap), compact species counts"
+      }
+    },
+    "input": {
+      "aspirin": {
+        "split": "train",
+        "load": {
+          "median_s": 0.028375750000122935,
+          "times_s": [
+            1.674963708006544,
+            0.028375750000122935,
+            0.02261124999495223
+          ]
+        },
+        "epoch": {
+          "median_s": 0.18487391699454747,
+          "times_s": [
+            0.19540383300045505,
+            0.18487391699454747,
+            0.17934141599107534
+          ],
+          "n": 1600,
+          "mol_per_s": 8654.546979967916
+        },
+        "pipeline": "Dataset.range + numpy_function over mmap arrays, shuffle 1000, prefetch"
+      }
+    },
+    "train": {
+      "aspirin": {
+        "n_train": 1600,
+        "n_val": 200,
+        "n_max": [
+          20,
+          11
+        ],
+        "epochs_per_window": 2,
+        "variants": {
+          "spe1_xla0": {
+            "steps_per_execution": 1,
+            "jit_compile": false,
+            "warmup_s": [
+              8.984355082997354
+            ],
+            "epoch_times_s": [
+              8.984355082997354,
+              5.51452216701,
+              5.5778962500044145,
+              5.467215249984292,
+              5.432121791993268,
+              5.558959832997061,
+              5.530918833974283
+            ],
+            "window": {
+              "median_s": 11.089880916988477,
+              "times_s": [
+                11.092421374982223,
+                10.899339916009922,
+                11.089880916988477
+              ],
+              "n": 3200,
+              "steps_per_s": 288.551340086795
+            },
+            "tracing_counts": {
+              "train_step": 1,
+              "train_steps": 1,
+              "val_step": 0
+            }
+          },
+          "spe1_xla1": {
+            "steps_per_execution": 1,
+            "jit_compile": true,
+            "warmup_s": [
+              5.732095874991501
+            ],
+            "epoch_times_s": [
+              5.732095874991501,
+              2.944516832998488,
+              2.9451647920068353,
+              2.969295874994714,
+              2.980638959008502,
+              2.9204712500213645,
+              2.9565204579848796
+            ],
+            "window": {
+              "median_s": 5.889682500011986,
+              "times_s": [
+                5.889682500011986,
+                5.9499367919925135,
+                5.876993416983169
+              ],
+              "n": 3200,
+              "steps_per_s": 543.3230059504035
+            },
+            "tracing_counts": {
+              "train_step": 1,
+              "train_steps": 1,
+              "val_step": 0
+            }
+          },
+          "spe8_xla0": {
+            "steps_per_execution": 8,
+            "jit_compile": false,
+            "warmup_s": [
+              6.434171332977712
+            ],
+            "epoch_times_s": [
+              6.434171332977712,
+              4.288142917008372,
+              4.267233999999007,
+              4.258755083981669,
+              4.317882333998568,
+              4.261321540980134,
+              4.342601584008662
+            ],
+            "window": {
+              "median_s": 8.576639417005936,
+              "times_s": [
+                8.555378082994139,
+                8.576639417005936,
+                8.603925458010053
+              ],
+              "n": 3200,
+              "steps_per_s": 373.10650995248494
+            },
+            "tracing_counts": {
+              "train_step": 1,
+              "train_steps": 1,
+              "val_step": 0
+            }
+          },
+          "spe8_xla1": {
+            "steps_per_execution": 8,
+            "jit_compile": true,
+            "warmup_s": [
+              4.972144542000024
+            ],
+            "epoch_times_s": [
+              4.972144542000024,
+              2.269130375003442,
+              2.2936182499979623,
+              2.289644375006901,
+              2.2873560409934726,
+              2.273662040999625,
+              2.2902439999743365
+            ],
+            "window": {
+              "median_s": 4.563908209005604,
+              "times_s": [
+                4.562749874981819,
+                4.577001875004498,
+                4.563908209005604
+              ],
+              "n": 3200,
+              "steps_per_s": 701.1534530176768
+            },
+            "tracing_counts": {
+              "train_step": 1,
+              "train_steps": 1,
+              "val_step": 0
+            }
+          }
+        },
+        "validation": {
+          "median_s": 0.039072209008736536,
+          "times_s": [
+            0.038030583993531764,
+            0.039554249990032986,
+            0.039072209008736536
+          ],
+          "n": 200,
+          "mol_per_s": 5118.72773702864
+        }
+      }
+    },
+    "infer": {
+      "aspirin": {
+        "n_molecules": 1000,
+        "n_max": [
+          20,
+          11
+        ],
+        "batch_size": 256,
+        "without_descriptors": {
+          "median_s": 0.11302066600183025,
+          "times_s": [
+            0.13372787498519756,
+            0.11274445900926366,
+            0.11302066600183025
+          ],
+          "n": 1000,
+          "mol_per_s": 8847.939366980956
+        },
+        "descriptors_only": {
+          "median_s": 0.2298745829903055,
+          "times_s": [
+            0.23391645899391733,
+            0.2298745829903055,
+            0.2285899170092307
+          ],
+          "n": 1000,
+          "mol_per_s": 4350.198212397292
+        },
+        "with_descriptors": {
+          "median_s": 0.3793295419891365,
+          "times_s": [
+            0.3793295419891365,
+            0.38936629198724404,
+            0.3718330420088023
+          ],
+          "n": 1000,
+          "mol_per_s": 2636.2302149107036
+        },
+        "with_descriptors_parallel": {
+          "median_s": 1.2130543339881115,
+          "times_s": [
+            1.2102853749820497,
+            1.235256959014805,
+            1.2130543339881115
+          ],
+          "n": 1000,
+          "mol_per_s": 824.3653824741214,
+          "n_workers": 10
+        },
+        "tracing_count": 1
+      }
+    }
+  }
+}
