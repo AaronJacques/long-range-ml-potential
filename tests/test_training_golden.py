@@ -31,7 +31,15 @@ except ImportError:  # pragma: no cover - depends on pytest import mode
 pytestmark = pytest.mark.golden
 
 CONFIG = Path(__file__).resolve().parent / "fixtures" / "configs" / "golden_legacy.toml"
-RTOL, ATOL = 1e-4, 1e-6
+# One float32 epoch (48 steps) vs the legacy run; the reduction order of the CPU
+# kernels differs between platforms and accumulates over the steps. Observed on macOS
+# arm64: weights max |Δ| 5.9e-7 (factor 6 below the former atol 1e-6), losses rel.
+# 1.7e-5 (factor 6 below the former rtol 1e-4). The values below leave a factor
+# ~29 on both. Real changes are still caught: learning rate +1 % gives weights
+# 170 times the tolerance and losses rel. 3e-2-0.15; one decay step earlier
+# (lr_decay_steps 19) gives weights 5 times the tolerance and losses rel. 2e-3-8e-3.
+RTOL, ATOL = 1e-4, 1e-5  # weights
+LOSS_RTOL = 5e-4
 
 
 @pytest.fixture(scope="module")
@@ -79,10 +87,16 @@ def test_weights_after_one_epoch(trained: tuple[Trainer, TrainingResult, dict[st
 def test_epoch_losses(trained: tuple[Trainer, TrainingResult, dict[str, Any]]) -> None:
     _, result, golden = trained
     row = result.history[0]
-    np.testing.assert_allclose(row["train_energy_mse"], float(golden["energy_loss"]), rtol=RTOL)
-    np.testing.assert_allclose(row["train_loss"], float(golden["energy_loss"]), rtol=RTOL)
-    np.testing.assert_allclose(row["val_energy_mse"], float(golden["val_energy_loss"]), rtol=RTOL)
-    np.testing.assert_allclose(result.best_val_energy_mse, float(golden["final_loss"]), rtol=RTOL)
+    np.testing.assert_allclose(
+        row["train_energy_mse"], float(golden["energy_loss"]), rtol=LOSS_RTOL
+    )
+    np.testing.assert_allclose(row["train_loss"], float(golden["energy_loss"]), rtol=LOSS_RTOL)
+    np.testing.assert_allclose(
+        row["val_energy_mse"], float(golden["val_energy_loss"]), rtol=LOSS_RTOL
+    )
+    np.testing.assert_allclose(
+        result.best_val_energy_mse, float(golden["final_loss"]), rtol=LOSS_RTOL
+    )
     assert result.best_epoch == 1
 
 

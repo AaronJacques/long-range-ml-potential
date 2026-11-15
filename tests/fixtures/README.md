@@ -127,4 +127,8 @@ so `--check` may report differences there. The committed files are the
 reference. `test_synthetic_inputs_reproducible_from_generator` therefore compares
 the regenerated `E` and `F` with `rtol = atol = 1e-12` (shapes and dtypes exact),
 while `R`, `z` and the edge cases are compared exactly; the sha256 checks of the
-committed files are unaffected.
+committed files are unaffected. The model, training and evaluation goldens are
+float32 results of CPU kernels whose reduction order depends on the CPU; the tests
+compare them with tolerances that are justified next to each check by the observed
+macOS/Linux deviations (`test_model_golden.py`, `test_training_golden.py`,
+`test_evaluation_golden.py`).

@@ -89,7 +89,10 @@ def test_run_layout_and_log_columns(dataset_dir: Path, tmp_path: Path) -> None:
         assert values["val_loss"] == values["val_energy_mse"]
     assert [int(r["epoch"]) for r in rows] == [1, 2]
     assert result.steps == 2 * 48
-    assert float(rows[-1]["learning_rate"]) == pytest.approx(1e-3 * 0.97 ** (96 // 20), rel=1e-6)
+    # float32 learning rate vs the float64 formula: observed rel. 1.5e-7 (about one
+    # float32 ulp, pow may differ by another ulp elsewhere); one decay step more or
+    # less changes the value by 3 %.
+    assert float(rows[-1]["learning_rate"]) == pytest.approx(1e-3 * 0.97 ** (96 // 20), rel=1e-5)
 
 
 def test_learning_rate_column_is_rate_at_epoch_end(dataset_dir: Path, tmp_path: Path) -> None:
@@ -534,8 +537,11 @@ def test_eager_steps_match_compiled(dataset_dir: Path, tmp_path: Path, forces: b
     assert eager.steps == compiled.steps == 48
     a, b = eager.history[0], compiled.history[0]
     assert a.keys() == b.keys() == set(log_columns(forces))
+    # One float32 epoch (48 steps) through two execution paths: observed max rel.
+    # 3e-5 on macOS arm64, 5e-4 leaves a factor ~16. An off-by-one in the learning
+    # rate decay alone moves the train loss by 2e-3 (test_training_golden.py).
     for key in a.keys() - {"seconds", "epoch"}:
-        assert a[key] == pytest.approx(b[key], rel=1e-4), key
+        assert a[key] == pytest.approx(b[key], rel=5e-4), key
     if forces:
         assert a["train_force_mse"] > 0 and a["val_force_mse"] > 0
 

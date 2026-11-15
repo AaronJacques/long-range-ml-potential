@@ -74,9 +74,11 @@ def test_batched_equals_unbatched(golden_run: tuple[RunDirectory, ExperimentConf
     run, _ = golden_run
     one = evaluate(run.path, split="test", batch_size=1)
     many = evaluate(run.path, split="test", batch_size=256)
-    # Errors are differences of float32 energies of a few hundred kcal/mol: compare
-    # them with an absolute tolerance of a few float32 ulps of the energy.
-    np.testing.assert_allclose(one.energy_abs_errors, many.energy_abs_errors, rtol=0, atol=1e-5)
+    # Errors are differences of float32 energies of a few hundred kcal/mol, and the
+    # batch shape changes the kernel blocking: observed max |Δ| 1.9e-6 on macOS arm64.
+    # atol 1e-4 (~3 float32 ulps at 300 kcal/mol) keeps a factor > 10 for other CPUs;
+    # mixing up molecules between batches would change the errors by O(1).
+    np.testing.assert_allclose(one.energy_abs_errors, many.energy_abs_errors, rtol=0, atol=1e-4)
 
 
 def test_force_model_energy_is_column_0(
@@ -100,4 +102,6 @@ def test_force_model_energy_is_column_0(
     np.testing.assert_allclose(pred.energies, g["sum_energy"], rtol=1e-5, atol=1e-4)
     assert np.min(np.abs(pred.energies - g["sum_all"])) > 1e-2
     assert pred.forces is not None
-    np.testing.assert_allclose(pred.forces, g["output"][:, 1:4], rtol=1e-5, atol=1e-5)
+    # Same float32 model outputs as test_model_golden.py (OUTPUT_RTOL/ATOL there):
+    # observed max |Δ| 5.3e-6 on macOS arm64, up to 2.2e-5 on Linux for the outputs.
+    np.testing.assert_allclose(pred.forces, g["output"][:, 1:4], rtol=2e-4, atol=2e-4)

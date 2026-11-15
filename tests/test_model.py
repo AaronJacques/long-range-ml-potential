@@ -288,8 +288,14 @@ def test_training_flag_controls_dropout() -> None:
     model = build_model(dataclasses.replace(SMALL, dropout_rate=0.5), N_LOC, N_LR)
     x = _inputs(6, N_LOC, N_LR)
     inference = [np.asarray(model(x, training=False)) for _ in range(2)]
+    # Two eager calls run the same kernels: bit-identical.
     np.testing.assert_array_equal(inference[0], inference[1])
-    np.testing.assert_array_equal(np.asarray(model.predict(x, verbose=0)), inference[0])
+    # predict() runs a compiled graph (other kernel fusion), so only float32-close:
+    # observed max |Δ| 9e-7 (rel 2e-6) on a Linux x86_64 runner, 0 on macOS arm64.
+    # Dropout 0.5 (below) moves the outputs by > 1e5 times this tolerance.
+    np.testing.assert_allclose(
+        np.asarray(model.predict(x, verbose=0)), inference[0], rtol=1e-5, atol=1e-5
+    )
     train_a = np.asarray(model(x, training=True))
     train_b = np.asarray(model(x, training=True))
     assert not np.allclose(train_a, inference[0])

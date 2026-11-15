@@ -302,7 +302,10 @@ def test_permutation_energy_cell_order_preserving(
     """Model inputs permute bit-exactly, so atomic and total energies are invariant.
 
     The model output itself depends on the row position in the batch by float32
-    rounding (≈ 1e-6 relative); this is the only tolerance.
+    rounding; this is the only tolerance. Observed on macOS arm64: atomic energies
+    max |Δ| 1.3e-6, total energy rel. 3e-7. The tolerances (atol 1e-4, rtol 1e-5)
+    leave a factor >= 30 for other CPUs; an order-changing permutation (A10, see
+    test_permutation_energy_arbitrary) changes the energy by 18 %.
     """
     pos, z = dense_molecule if which == "dense" else molecule
     potential = potentials[mode]
@@ -311,10 +314,10 @@ def test_permutation_energy_cell_order_preserving(
     for key, value in ref.items():
         np.testing.assert_array_equal(new[key], value[perm], err_msg=key)
     np.testing.assert_allclose(
-        _atomic(potential, pos[perm], z[perm]), _atomic(potential, pos, z)[perm], atol=1e-5
+        _atomic(potential, pos[perm], z[perm]), _atomic(potential, pos, z)[perm], atol=1e-4
     )
     np.testing.assert_allclose(
-        _energy(potential, pos[perm], z[perm]), _energy(potential, pos, z), rtol=1e-6
+        _energy(potential, pos[perm], z[perm]), _energy(potential, pos, z), rtol=1e-5
     )
 
 
@@ -407,7 +410,10 @@ def test_padding_rows_do_not_change_descriptor() -> None:
     d = np.asarray(layer(r, g))
     d_pad = np.asarray(layer(r_pad, g_pad))
     assert d.shape == (batch, k1, k2)
-    np.testing.assert_allclose(d_pad, d, rtol=1e-5, atol=1e-5)
+    # float32 contraction over 7 vs 13 rows: the zero rows add exact zeros, but the
+    # kernel blocks the sum differently (observed max |Δ| 1.5e-5 on macOS arm64,
+    # |D| up to ~160). A padding row with R = 1e-3 instead of 0 changes D by ~15.
+    np.testing.assert_allclose(d_pad, d, rtol=1e-4, atol=1e-4)
     expected = np.einsum("bnk,bnc,bmc,bml->bkl", g, r, r, g[..., :k2])
     np.testing.assert_allclose(d, expected, rtol=1e-4, atol=1e-4)
 

@@ -19,6 +19,12 @@ from lrmlp.run import RunDirectory
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 CONFIG = FIXTURES / "configs" / "smoke.toml"
+# Energies are float32 sums of atomic energies computed in batches of different
+# shapes, so the CPU kernels block the reductions differently (float32 eps 1.2e-7).
+# Observed on macOS arm64: rel. deviation <= 3.6e-7 (factor 2.8 below the former
+# 1e-6). 1e-5 leaves a factor >= 25 for other CPUs and stays far below the spread of
+# the energies between frames.
+ENERGY_RTOL = 1e-5
 
 
 @pytest.fixture(scope="module")
@@ -94,11 +100,14 @@ def test_predict_equals_single_calls(
     assert isinstance(pred, Prediction)
     assert pred.energies.shape == (12,) and pred.forces is None
     single = np.array([pot.predict(pos[s], z).energies[0] for s in range(12)])
-    np.testing.assert_allclose(pred.energies, single, rtol=1e-6)
+    # Batch shape changes the float32 kernel blocking: observed rel. 3.6e-7 on macOS
+    # arm64 (|E| ~ 16), ENERGY_RTOL leaves a factor ~30; np.ptp below shows that the
+    # energies of different frames differ by far more.
+    np.testing.assert_allclose(pred.energies, single, rtol=ENERGY_RTOL)
     # Reference: model on one molecule, summed over atoms (no batching code involved).
     x = pot.descriptors(pos[3], z)
     ref = float(np.sum(np.asarray(pot.model(x, training=False))[:, 0], dtype=np.float32))
-    np.testing.assert_allclose(pred.energies[3], ref, rtol=1e-6)
+    np.testing.assert_allclose(pred.energies[3], ref, rtol=ENERGY_RTOL)
     assert np.ptp(pred.energies) > 0
 
 
@@ -108,8 +117,8 @@ def test_batch_size_invariance(energy_run: RunDirectory, frames: dict[str, np.nd
     a = pot.predict(pos, z, batch_size=1).energies
     b = pot.predict(pos, z, batch_size=256).energies
     c = pot.predict(pos, z, batch_size=7).energies
-    np.testing.assert_allclose(a, b, rtol=1e-6)
-    np.testing.assert_allclose(c, b, rtol=1e-6)
+    np.testing.assert_allclose(a, b, rtol=ENERGY_RTOL)
+    np.testing.assert_allclose(c, b, rtol=ENERGY_RTOL)
     with pytest.raises(ValueError, match="batch_size"):
         pot.predict(pos, z, batch_size=0)
 
@@ -166,7 +175,8 @@ def test_forces_follow_input_order(force_run: RunDirectory, frames: dict[str, np
     permuted = pot.predict(pos[:1, perm], z[perm])
     assert permuted.forces is not None
     np.testing.assert_allclose(permuted.energies, pred.energies[:1], rtol=1e-5)
-    np.testing.assert_allclose(permuted.forces[0], pred.forces[0, perm], rtol=1e-4, atol=1e-6)
+    # Observed max |Δ| 1.1e-6 on macOS arm64: margin 11 with atol 1e-6, 36 with 1e-5.
+    np.testing.assert_allclose(permuted.forces[0], pred.forces[0, perm], rtol=1e-4, atol=1e-5)
     # The forces differ between atoms, so the comparison is not trivial.
     assert np.ptp(pred.forces[0], axis=0).min() > 1e-3
 
@@ -190,7 +200,7 @@ def test_predict_descriptors(
     molecules = [split.molecule(k) for k in range(len(split))]
     from_desc = pot.predict_descriptors(molecules, batch_size=2)
     from_pos = pot.predict(frames["R"][split.sample_index], frames["z"])
-    np.testing.assert_allclose(from_desc.energies, from_pos.energies, rtol=1e-6)
+    np.testing.assert_allclose(from_desc.energies, from_pos.energies, rtol=ENERGY_RTOL)
 
 
 def test_evaluate_matches_predict(

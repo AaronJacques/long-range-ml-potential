@@ -466,7 +466,11 @@ def test_batched_pipeline_segments(smoke: DescriptorDataset, per_batch: int) -> 
             np.asarray(split.arrays["forces"][lo:hi]),
             np.asarray(split.atom_offsets[k : k + b]) - lo,
         )
-        np.testing.assert_allclose(summed, expected, rtol=1e-6, atol=1e-6)
+        # float32 sums in another order (TF segment sum vs NumPy reduceat); the LJ
+        # forces of a molecule sum to ~0, so atol binds: observed max |Δ| 6e-7 on
+        # macOS arm64. A row in the wrong segment moves a sum by that atom's
+        # force, >= 2.8e-4 per component here (median 1.4e-2).
+        np.testing.assert_allclose(summed, expected, rtol=1e-5, atol=2e-5)
         features = tf.math.unsorted_segment_sum(
             tf.reduce_sum(x["long_range_features"], axis=[1, 2]), seg, b
         ).numpy()

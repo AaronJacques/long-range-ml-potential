@@ -24,6 +24,18 @@ VARIANTS = ["lr_energy", "local_energy", "lr_forces", "lr_energy_k1"]
 INPUTS = ["local_matrix", "local_numbers", "long_range_matrix", "long_range_features"]
 #: Energy network of M-1: Dense 128 + 2 residual blocks 128 (Model.py:54-59).
 FITTING_RES_BLOCKS = (128, 128)
+# float32 forward pass vs the legacy (tf_keras) outputs. The outputs are O(1-4); each
+# passes through an embedding of width 32, a feature matrix that sums over up to
+# N_max = 24 neighbour rows (fan-in ~ 24 * 32) and a 128-wide fitting net, so the
+# result depends on the reduction order of the CPU kernels (float32 eps = 1.2e-7).
+# Observed max |Δ|: 1.7e-5 on macOS arm64 and 2.2e-5 on a Linux x86_64 runner
+# (lr_energy_k1, 1 of 105 elements). 2e-4 leaves a factor >= 10 on both, while
+# swapping two weights of one Dense kernel changes the outputs by 0.05-0.2, i.e.
+# >= 150 times the tolerance.
+OUTPUT_RTOL = OUTPUT_ATOL = 2e-4
+# Per-molecule sums over 21 atoms (x 4 columns for sum_all): the per-element errors
+# partly add up; observed max 1.7e-5 on macOS.
+SUM_ATOL = 1e-3
 
 
 def _k1(value: int, n_max: int) -> int | str:
@@ -84,14 +96,14 @@ def test_outputs_match_legacy(case: tuple[str, dict[str, Any], Any]) -> None:
     out = np.asarray(model(x, training=False))
     expected = g["output"]
     assert out.shape == expected.shape
-    np.testing.assert_allclose(out, expected, rtol=1e-5, atol=1e-5, err_msg=variant)
+    np.testing.assert_allclose(out, expected, rtol=OUTPUT_RTOL, atol=OUTPUT_ATOL, err_msg=variant)
 
     offsets = g["atom_offsets"]
     out64 = out.astype(np.float64)
     sum_energy = [out64[a:b, 0].sum() for a, b in zip(offsets[:-1], offsets[1:], strict=True)]
     sum_all = [out64[a:b].sum() for a, b in zip(offsets[:-1], offsets[1:], strict=True)]
-    np.testing.assert_allclose(sum_energy, g["sum_energy"], rtol=0, atol=1e-4)
-    np.testing.assert_allclose(sum_all, g["sum_all"], rtol=0, atol=1e-4)
+    np.testing.assert_allclose(sum_energy, g["sum_energy"], rtol=0, atol=SUM_ATOL)
+    np.testing.assert_allclose(sum_all, g["sum_all"], rtol=0, atol=SUM_ATOL)
     max_dev = float(np.max(np.abs(out.astype(np.float64) - expected)))
     print(f"{variant}: max |Δ| per atom = {max_dev:.3e}")
 
