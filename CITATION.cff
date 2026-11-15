@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the master's thesis it accompanies (preferred-citation)."
+type: software
+title: "long-range-ml-potential: Machine Learning Potentials with Long Range Interaction"
+abstract: >-
+  Code of the master's thesis "Machine Learning Potentials with Long Range
+  Interaction": a neural network potential that combines a local
+  DeepPot-SE-style descriptor with a grid-based long-range term built from the
+  centres of mass and element counts of grid cells.
+authors:
+  - family-names: Schulz
+    given-names: Aaron
+version: 0.1.0
+repository-code: "https://github.com/AaronJacques/long-range-ml-potential"
+keywords:
+  - machine learning potential
+  - long-range interaction
+  - neural network
+  - molecular energy
+preferred-citation:
+  type: thesis
+  thesis-type: "Master's Thesis in Quantum Science & Technology"
+  title: "Machine Learning Potentials with Long Range Interaction"
+  authors:
+    - family-names: Schulz
+      given-names: Aaron
+  institution:
+    name: "Technische Universität München"
+  department: "Physics Department"
+  year: 2024
+  month: 10
+  notes: "Supervisor: Christian Mendl. Submitted on 5 October 2024."
+  url: "https://github.com/AaronJacques/long-range-ml-potential"
