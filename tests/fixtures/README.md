@@ -118,3 +118,13 @@ every manifest field except the environment `versions` and the file sha256
 timestamp. `tests/test_golden_fixtures.py` and
 `tests/test_golden_model_fixtures.py` check the committed files without the
 legacy env.
+
+**Platform.** Bit-identical regeneration (`--check`) is only guaranteed on the
+platform that wrote the fixtures: macOS arm64 with the versions in the manifest
+`versions`. On other platforms (e.g. Linux x86_64) floating-point results such as
+the Lennard-Jones forces `F` can differ in the last bits (libm, summation order),
+so `--check` may report differences there. The committed files are the
+reference. `test_synthetic_inputs_reproducible_from_generator` therefore compares
+the regenerated `E` and `F` with `rtol = atol = 1e-12` (shapes and dtypes exact),
+while `R`, `z` and the edge cases are compared exactly; the sha256 checks of the
+committed files are unaffected.

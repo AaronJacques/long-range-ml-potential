@@ -141,7 +141,7 @@ def test_ci_lint_and_typecheck_commands(ci_jobs: dict[str, str]) -> None:
 
 def test_ci_test_job_enforces_coverage(ci_jobs: dict[str, str]) -> None:
     job = ci_jobs["test"]
-    assert re.search(r"os: \[macos-14, ubuntu-latest\]", job)
+    assert re.search(r"os: \[macos-latest, ubuntu-latest\]", job)
     assert re.search(r'python-version: \["3\.12"\]', job)
     commands = _run_commands(job)
     assert 'python -m pip install -e ".[dev,plot,tune]"' in commands

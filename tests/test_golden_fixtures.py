@@ -77,11 +77,36 @@ def test_synthetic_inputs_shapes_and_constraints() -> None:
     assert list(z) == [6] * 9 + [1] * 8 + [8] * 4
 
 
+# Regenerating the Lennard-Jones labels E/F is bit-identical only on the platform
+# that wrote the fixtures (macOS arm64); on Linux x86_64 F differs in the last bits
+# (libm pow/sqrt, summation order). The committed files stay the reference. Against
+# a 50-digit Decimal evaluation the stored float64 labels are off by at most 8e-15
+# (F, max |F| ~ 4.5) and 2e-15 (E), so two IEEE float64 platforms differ by about
+# 2e-14 at most. rtol = atol = 1e-12 leaves a factor ~50 of headroom; moving any
+# single atom by one position quantum (2**-10 Angstrom) in any frame changes E by
+# >= 6e-10 and F by >= 1.7e-7, far beyond the tolerance. atol is needed because E
+# and small F components come from cancelling pair sums.
+SYNTHETIC_LABEL_RTOL = 1e-12
+SYNTHETIC_LABEL_ATOL = 1e-12  # kcal/mol and kcal/(mol*Angstrom)
+
+
 def test_synthetic_inputs_reproducible_from_generator() -> None:
     small = synthetic.aspirin_like(60, seed=0)
     stored = fx.load_synthetic("synthetic_small")
     for key in ("E", "F", "R", "z"):
+        assert small[key].shape == stored[key].shape, key
+        assert small[key].dtype == stored[key].dtype, key
+    # z is integer and R lies on the 2**-10 grid (rounded draws), so both stay exact.
+    for key in ("R", "z"):
         assert np.array_equal(small[key], stored[key]), key
+    for key in ("E", "F"):
+        np.testing.assert_allclose(
+            small[key],
+            stored[key],
+            rtol=SYNTHETIC_LABEL_RTOL,
+            atol=SYNTHETIC_LABEL_ATOL,
+            err_msg=key,
+        )
     edge = fx.load_edge_cases()
     for name, case in synthetic.edge_cases().items():
         assert np.array_equal(edge[name]["R"], case["R"])
