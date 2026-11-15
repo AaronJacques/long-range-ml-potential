@@ -5,8 +5,8 @@ with ``git archive <ref> Neural-Network`` into a temporary directory and importe
 from there. Requires the golden environment (TF 2.21 + tf_keras) and
 ``TF_USE_LEGACY_KERAS=1``; run with ``PYTHONDONTWRITEBYTECODE=1``.
 
-Interface (also used by T03)
-----------------------------
+Interface (also used by the model generator)
+--------------------------------------------
 ``extract_legacy(ref="9413bfd") -> Path``
     Exports ``Neural-Network/`` and returns ``<tmpdir>/Neural-Network``. The caller
     owns the temporary directory; remove it with ``cleanup_legacy(src)``.
@@ -99,7 +99,7 @@ def load_legacy(src: Path) -> SimpleNamespace:
     if os.environ.get("TF_USE_LEGACY_KERAS") != "1":
         raise RuntimeError(
             "the legacy code needs Keras 2: set TF_USE_LEGACY_KERAS=1 "
-            "(and use the golden env .overhaul/env/venv-py312-tf221)"
+            '(in a Python 3.12 env with TF 2.21, tf-keras and pandas: pip install -e ".[legacy]")'
         )
     src = Path(src).resolve()
     if src.resolve().is_relative_to((REPO_ROOT / "Neural-Network").resolve()):

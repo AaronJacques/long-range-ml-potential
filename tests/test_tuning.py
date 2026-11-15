@@ -1,4 +1,4 @@
-"""Tests of the hyperparameter search ``lrmlp.tuning`` (T13, B04)."""
+"""Tests of the hyperparameter search ``lrmlp.tuning`` (legacy defect B04)."""
 
 from __future__ import annotations
 
@@ -276,7 +276,7 @@ def test_cli_tune_dry_run(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> N
 
 
 def test_energy_only_example_space(tmp_path: Path) -> None:
-    """C4-F34: the energy-only example trains the method of the thesis (no force mode)."""
+    """The energy-only example trains the method of the thesis (no force mode)."""
     energy = REPO / "configs" / "hparam_search.energy.toml"
     space = load_space(energy)
     assert len(space) == 3 * 4 * 4
@@ -291,3 +291,33 @@ def test_energy_only_example_space(tmp_path: Path) -> None:
     assert all(t.overrides["model.predict_forces"] is False for t in results)
     for combo in list(space.combinations())[:3]:
         assert load_config(SMOKE, combo).model.predict_forces is False
+
+
+# --------------------------------------------------------------------------- optional TensorBoard
+
+
+def test_search_without_tensorboard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_train: list[ExperimentConfig]
+) -> None:
+    import lrmlp.run
+
+    monkeypatch.setattr(lrmlp.run, "tensorboard_available", lambda: False)
+    space = _small_space(tmp_path, "0.01")
+    assert len(run_search(SMOKE, space, dry_run=True, run_root=tmp_path / "runs")) == 2
+    with pytest.raises(ModuleNotFoundError, match=r'pip install -e "\.\[tune\]"'):
+        run_search(SMOKE, space, run_root=tmp_path / "runs")
+    assert fake_train == [] and not (tmp_path / "runs").exists()
+
+
+def test_cli_tune_without_tensorboard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import lrmlp.run
+
+    monkeypatch.setattr(lrmlp.run, "tensorboard_available", lambda: False)
+    argv = ["tune", "--config", str(SMOKE), "--space", str(EXAMPLE)]
+    assert cli.main([*argv, "--dry-run"]) == 0
+    assert cli.main(argv) == 2
+    err = capsys.readouterr().err
+    assert "lrmlp tune: error: lrmlp tune needs TensorBoard" in err
+    assert '"tune"' in err and "--dry-run works without it" in err

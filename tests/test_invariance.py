@@ -1,4 +1,4 @@
-"""Physical invariances of the descriptors and the atomic network (plan §5.2).
+"""Physical invariances of the descriptors and the atomic network.
 
 The tests are deliberately honest about what the method guarantees:
 

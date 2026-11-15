@@ -519,14 +519,14 @@ def test_no_pandas_import(tmp_path: Path) -> None:
     assert result.stdout.strip() == "ok"
 
 
-# --------------------------------------------------------------------------- C2 fixes
+# ------------------------------------------------------------- permissions, errors, merging
 
 
 @pytest.mark.parametrize("umask", [0o022, 0o027])
 def test_dataset_directory_has_default_mode(
     smoke_config: ExperimentConfig, tmp_path: Path, umask: int
 ) -> None:
-    """C2-F16: the dataset directory gets ``0o777 & ~umask`` like a plain mkdir, not 0700."""
+    """The dataset directory gets ``0o777 & ~umask`` like a plain mkdir, not 0700."""
     previous = os.umask(umask)
     try:
         target = build_dataset(smoke_config, output_dir=tmp_path / "ds", n_workers=1)
@@ -544,7 +544,7 @@ def test_dataset_directory_has_default_mode(
 def test_frame_errors_name_source_and_frame(
     smoke_config: ExperimentConfig, tmp_path: Path, n_workers: int
 ) -> None:
-    """C2-F17: a defective frame is reported with its source and frame index."""
+    """A defective frame is reported with its source and frame index."""
     raw = dict(_raw())
     positions = raw["R"].copy()
     positions[37, 5] = positions[37, 4]  # two coincident atoms (B12)
@@ -581,7 +581,7 @@ def _field_arrays(ragged: Any) -> list[np.ndarray]:
 
 
 def test_ragged_concatenate_equals_numpy_concatenate() -> None:
-    """C2-F18: the preallocated merge gives exactly ``np.concatenate`` of the parts."""
+    """The preallocated merge gives exactly ``np.concatenate`` of the parts."""
     from lrmlp.dataset import _Ragged
 
     rng = np.random.default_rng(3)
@@ -601,7 +601,7 @@ def test_ragged_concatenate_equals_numpy_concatenate() -> None:
 
 
 def test_ragged_concatenate_does_not_double_memory() -> None:
-    """C2-F18: merging allocates at most the largest field on top of the parts."""
+    """Merging allocates at most the largest field on top of the parts."""
     from lrmlp.dataset import _Ragged
 
     rng = np.random.default_rng(5)
@@ -625,7 +625,7 @@ def test_ragged_concatenate_does_not_double_memory() -> None:
 
 
 def test_mixed_dataset_equals_direct_descriptors(mixed: Path) -> None:
-    """C2-F18: two sources, two workers; every stored molecule equals the direct result."""
+    """Two sources, two workers; every stored molecule equals the direct result."""
     ds = load_dataset(mixed)
     raws = {0: _raw("synthetic_small"), 1: _raw("stachyose_like")}
     for name in SPLITS:
@@ -640,11 +640,11 @@ def test_mixed_dataset_equals_direct_descriptors(mixed: Path) -> None:
                 np.testing.assert_array_equal(mol[key], value, err_msg=f"{name}[{k}] {key}")
 
 
-# --------------------------------------------------------------------------- C4-K3
+# --------------------------------------------------------------------------- BLAS threads
 
 
 def test_workers_use_one_blas_thread(monkeypatch: pytest.MonkeyPatch) -> None:
-    """C4-K3: the spawned workers start with one BLAS/OpenMP thread each.
+    """The spawned workers start with one BLAS/OpenMP thread each.
 
     The parent keeps its environment: a set variable gets its value back, an
     unset one stays unset.
@@ -660,7 +660,7 @@ def test_workers_use_one_blas_thread(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_worker_environment_restored_after_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """C4-K3: the parent environment is restored when the workers fail."""
+    """The parent environment is restored when the workers fail."""
     from lrmlp.dataset import WORKER_THREAD_ENV, _worker_map
 
     for name in WORKER_THREAD_ENV:
@@ -668,3 +668,53 @@ def test_worker_environment_restored_after_error(monkeypatch: pytest.MonkeyPatch
     with pytest.raises(ValueError):
         _worker_map(int, ["1", "not a number"], 2)
     assert not any(name in os.environ for name in WORKER_THREAD_ENV)
+
+
+def test_worker_environment_nested_blocks_restore_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Overlapping blocks (A enters, B enters, A exits, B exits) restore the parent values."""
+    from lrmlp.dataset import WORKER_THREAD_ENV, _single_threaded_children
+
+    monkeypatch.setenv("OPENBLAS_NUM_THREADS", "4")
+    monkeypatch.delenv("OMP_NUM_THREADS", raising=False)
+    a, b = _single_threaded_children(), _single_threaded_children()
+    a.__enter__()
+    b.__enter__()
+    a.__exit__(None, None, None)
+    assert all(os.environ[name] == "1" for name in WORKER_THREAD_ENV)  # B still starting
+    b.__exit__(None, None, None)
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "4"
+    assert "OMP_NUM_THREADS" not in os.environ
+
+
+def test_worker_environment_parallel_threads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Concurrent ``_worker_map`` calls from threads: workers see 1, the parent keeps its env."""
+    import threading
+
+    from lrmlp.dataset import WORKER_THREAD_ENV, _worker_map
+
+    monkeypatch.setenv("OPENBLAS_NUM_THREADS", "4")
+    monkeypatch.delenv("OMP_NUM_THREADS", raising=False)
+    names = list(WORKER_THREAD_ENV) * 2
+    results: list[list[str | None]] = []
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(3)
+
+    def call() -> None:
+        try:
+            barrier.wait()
+            results.append(_worker_map(os.getenv, names, 2))
+        except BaseException as exc:  # pragma: no cover - reported below
+            errors.append(exc)
+
+    for _ in range(2):
+        threads = [threading.Thread(target=call) for _ in range(3)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=300)
+        assert not errors, errors
+        barrier.reset()
+    assert len(results) == 6
+    assert all(r == ["1"] * len(names) for r in results)
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "4"
+    assert "OMP_NUM_THREADS" not in os.environ

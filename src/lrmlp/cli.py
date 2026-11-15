@@ -59,7 +59,7 @@ LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 LOG_FORMAT = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"
 #: Splits of a prepared dataset.
 SPLITS = ("test", "val", "train")
-#: Required arrays of a ``predict`` input file (plan §1.7).
+#: Required arrays of a ``predict`` input file (``docs/data-format.md``).
 PREDICT_INPUT_KEYS = ("R", "z")
 
 _PATH_NOTE = (
@@ -327,7 +327,8 @@ def build_parser() -> argparse.ArgumentParser:
         "tune",
         "hyperparameter grid search (needs lrmlp.tuning)",
         "Train one model per point of a hyperparameter grid (cf. the parameter "
-        "study behind Tab. 5.2). Replaces 'HyperparameterTester.py'.",
+        "study behind Tab. 5.2). Replaces 'HyperparameterTester.py'. Needs "
+        "TensorBoard (extra 'tune'); --dry-run works without it.",
     )
     p.add_argument(
         "--config", "-c", type=_path, required=True, metavar="C", help="base experiment TOML"
@@ -570,6 +571,11 @@ def _cmd_predict(args: argparse.Namespace) -> int:
 
 def _cmd_tune(args: argparse.Namespace) -> int:
     run_search = _lazy("lrmlp.tuning", "run_search")
+    from lrmlp.run import tensorboard_available
+    from lrmlp.tuning import TENSORBOARD_REQUIRED
+
+    if not args.dry_run and not tensorboard_available():
+        raise UsageError(TENSORBOARD_REQUIRED)
     result = run_search(args.config, args.space, args.max_trials, args.dry_run)
     if result is not None:
         logger.info("search finished: %s", result)
@@ -579,9 +585,8 @@ def _cmd_tune(args: argparse.Namespace) -> int:
 def _cmd_plot_log(args: argparse.Namespace) -> int:
     plot_training_log = _lazy("lrmlp.analysis.plots", "plot_training_log")
     source = args.run if args.run is not None else args.log
-    result = plot_training_log(source, args.output, args.skip)
-    if result is not None:
-        logger.info("wrote %s", result)
+    written = plot_training_log(source, args.output, args.skip)
+    logger.info("wrote %s", ", ".join(str(p) for p in written))
     return 0
 
 

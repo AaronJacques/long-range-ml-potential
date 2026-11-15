@@ -150,8 +150,7 @@ class MoleculeDescriptors:
         (column Z − 1 = element Z). Set by ``compute_descriptors(..., species=...)``
         for the compact form, where column s holds element ``species[s]``; such
         descriptors are rejected by :func:`pad_descriptors`,
-        :attr:`max_atomic_number` and :attr:`AtomDescriptors.long_range_features`
-        (C2-F23).
+        :attr:`max_atomic_number` and :attr:`AtomDescriptors.long_range_features`.
     """
 
     local_matrix: FloatArray
@@ -250,7 +249,7 @@ class MoleculeDescriptors:
 
 
 def _require_full_counts(species: IntArray | None, what: str) -> None:
-    """Reject compact long-range counts where the full m_max columns are needed (C2-F23)."""
+    """Reject compact long-range counts where the full m_max columns are needed."""
     if species is not None:
         raise ValueError(
             f"{what} needs the full max_atomic_number count columns, but these descriptors "
@@ -479,7 +478,7 @@ def pad_descriptors(
     ValueError
         If an atom has more rows than ``n_max_local`` / ``n_max_long_range``, a
         size is negative, an atomic number does not fit into uint8, or ``desc``
-        holds compact counts (``compute_descriptors(..., species=...)``, C2-F23).
+        holds compact counts (``compute_descriptors(..., species=...)``).
     """
     _require_full_counts(desc.species, "pad_descriptors")
     n_max_local = operator.index(n_max_local)

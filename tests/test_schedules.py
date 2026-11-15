@@ -1,4 +1,4 @@
-"""Learning-rate and loss-weight schedules against the legacy golden values (T03)."""
+"""Learning-rate and loss-weight schedules against the legacy golden values."""
 
 from __future__ import annotations
 

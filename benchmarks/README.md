@@ -38,6 +38,13 @@ the load average at its start and end. `--note TEXT` adds a remark to the metada
 the top of the page. If the glob matches results of several days, `compare.py` uses
 the most recent file of each implementation. Delete superseded reference files.
 
+Measure reference results from a committed state, so that `metadata.git_sha` names
+the measured code. If a result was measured on uncommitted changes
+(`git_dirty_src_or_benchmarks: true`), add `metadata.measured_tree` with the commit
+that contains exactly the measured `src/` and `benchmarks/`; `compare.py` shows it in
+the environment table. The reference files of 2026-11-15 were measured on the working
+tree that became commit `6090d43` and carry that field (recorded afterwards).
+
 ### Options of `run_benchmarks.py`
 
 | option | meaning |
@@ -68,7 +75,7 @@ the exit code), 1 = an equivalence tolerance was violated, 2 = invalid input.
 |---|---|
 | `--quick`, new / legacy | ~50 s / ~20 s |
 | `--quick` equivalence check | ~25 s |
-| full, new / legacy | ~2 min / ~2.5 min (quiet machine, C4 reference run; `metadata.runtime_s`) |
+| full, new / legacy | ~2 min / ~2.5 min (quiet machine, reference run of 2026-11-15; `metadata.runtime_s`) |
 | full equivalence check | ~1 min |
 
 ## What is measured
@@ -110,7 +117,8 @@ one molecule per call). The `lrmlp` process then compares:
 ## Interpretation
 
 * Factors are new ÷ legacy for rates and legacy ÷ new for bytes, so a factor > 1
-  always means the new code is better. The targets come from plan section 4.6.
+  always means the new code is better. The targets are the speed goals set for the
+  refactoring (column `target` of the generated page).
   Missed targets stay in the table and are explained on the generated page, in the
   manual analysis block. `compare.py` keeps that block when it regenerates the page.
 * Measurements on a loaded machine are noisy, especially the parallel ones. Compare

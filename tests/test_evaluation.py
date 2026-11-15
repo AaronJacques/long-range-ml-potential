@@ -188,7 +188,7 @@ def test_dataset_dir_override_and_padding_check(
     assert resolve_dataset_dir(run) == ds
     assert resolve_dataset_dir(run, tmp_path / "other") == tmp_path / "other"
 
-    # A dataset built with another grid is not the run's dataset (C3-F24) ...
+    # A dataset built with another grid is not the run's dataset ...
     other = config.with_overrides({"grid.max_local_level": 1})
     other_ds = build_dataset(other, output_dir=tmp_path / "other_ds", n_workers=1)
     with pytest.raises(ValueError, match=r"grid\.max_local_level.*n_max_local"):
@@ -206,7 +206,7 @@ def test_dataset_json_without_path(tmp_path: Path, smoke: tuple[ExperimentConfig
         resolve_dataset_dir(run)
 
 
-# --------------------------------------------------------------------------- C3-F24
+# --------------------------------------------------------------------------- dataset identity
 
 
 LEGACY_CONFIG = CONFIG.parent / "golden_legacy.toml"
@@ -228,7 +228,7 @@ def test_rebuilt_identical_dataset_is_accepted(
 def test_legacy_run_on_thesis_dataset_rejected(
     tmp_path: Path, smoke: tuple[ExperimentConfig, Path], caplog: pytest.LogCaptureFixture
 ) -> None:
-    """C3-F24 evidence 1: same N_max, other grid assignment."""
+    """Mismatch 1: same N_max, other grid assignment."""
     config, thesis_ds = smoke
     legacy = load_config(LEGACY_CONFIG)
     legacy_ds = build_dataset(legacy, output_dir=tmp_path / "legacy_ds", n_workers=1)
@@ -260,7 +260,7 @@ def test_legacy_run_on_thesis_dataset_rejected(
 def test_other_split_seed_rejected(
     tmp_path: Path, smoke: tuple[ExperimentConfig, Path], caplog: pytest.LogCaptureFixture
 ) -> None:
-    """C3-F24 evidence 2: same grid, other split; its test split holds training frames."""
+    """Mismatch 2: same grid, other split; its test split holds training frames."""
     config, ds = smoke
     run = make_run(tmp_path, config, ds, {1: _bias(-1.0)}, best=1)
     seed7 = build_dataset(

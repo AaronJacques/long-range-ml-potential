@@ -18,7 +18,7 @@ complete and that the defaults shown here match the code. The columns are:
   commit `9413bfd`, mostly `Constants.py`).
 
 "Not specified in the thesis" means that the thesis does not give a value. The
-deviations A01-A17 and open questions F1-F5 are explained in
+deviations A01-A17, open questions F1-F7 and legacy defects B01-B19 are explained in
 [methodology.md](methodology.md#deviations-and-decisions).
 
 ```toml

@@ -163,21 +163,33 @@ import numpy as np
 
 import lrmlp
 
-out = Path(tempfile.mkdtemp())
-config = lrmlp.load_config(
-    "tests/fixtures/configs/smoke.toml", ["train.epochs=2", f"train.run_root={out / 'runs'}"]
-)
-dataset_dir = lrmlp.build_dataset(config, output_dir=out / "dataset")
-result = lrmlp.train(config, dataset_dir)
-print("test MAE:", lrmlp.evaluate(result.run_dir).energy_mae, "kcal/mol")
 
-with np.load("tests/fixtures/synthetic_small.npz") as data:
-    prediction = lrmlp.Potential.from_run(result.run_dir).predict(data["R"], data["z"])
-print("energies:", prediction.energies[:3])
+def main() -> None:
+    out = Path(tempfile.mkdtemp())
+    config = lrmlp.load_config(
+        "tests/fixtures/configs/smoke.toml", ["train.epochs=2", f"train.run_root={out / 'runs'}"]
+    )
+    dataset_dir = lrmlp.build_dataset(config, output_dir=out / "dataset")
+    result = lrmlp.train(config, dataset_dir)
+    print("test MAE:", lrmlp.evaluate(result.run_dir).energy_mae, "kcal/mol")
+
+    with np.load("tests/fixtures/synthetic_small.npz") as data:
+        prediction = lrmlp.Potential.from_run(result.run_dir).predict(data["R"], data["z"])
+    print("energies:", prediction.energies[:3])
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-Run it from the repository root. Like the README quickstart, it uses the
-synthetic test data and writes only to a temporary directory.
+Save it as a file (e.g. `example.py`) and run it from the repository root
+(`python example.py`). Like the README quickstart, it uses the synthetic test data
+and writes only to a temporary directory. The `if __name__ == "__main__":` guard
+is required: `build_dataset` and `Potential.predict(..., n_workers > 1)` start
+worker processes with "spawn", which re-imports the main script in every worker.
+Without the guard, every worker would run the example again and the pool breaks
+(`BrokenProcessPool`). `n_workers=1` computes the descriptors in the calling
+process and needs no guard.
 
 ## Design decisions
 
@@ -196,32 +208,42 @@ describes one experiment, `--set` changes single values, and the run directory
 stores the resolved configuration. A run can therefore be evaluated, continued
 with inference, or reproduced without the original file. Relative paths in a
 configuration are resolved relative to the file, so no command depends on the
-working directory (legacy bug B10).
+working directory (legacy defect
+[B10](methodology.md#fixed-defects-of-the-legacy-code)).
 
-**Data contracts.** The three file boundaries are versioned and documented in
+**Data contracts.** The four file boundaries are documented in
 [data-format.md](data-format.md):
 
 - the raw `.npz` trajectory,
 - the dataset directory (`metadata.json` with `format_version`, memory-mapped
   `.npy` arrays per split),
-- the run directory (with the `.npz` prediction files).
+- the run directory (configuration, dataset metadata, training log, checkpoints,
+  best epoch, evaluations),
+- the prediction input and output of `lrmlp predict` (`.npz`, written wherever
+  `--output` points).
 
 Atoms are always in input order, so descriptor row $a$, force label $a$ and
-prediction $a$ belong to the same atom (legacy bug B01). The dataset stores the
+prediction $a$ belong to the same atom (legacy defect
+[B01](methodology.md#fixed-defects-of-the-legacy-code)). The dataset stores the
 element counts compactly and rebuilds the 101 columns of $F_i$ in the input
 pipeline. `evaluate` refuses a dataset that does not match the run.
 
 **Legacy profile and golden tests.** The refactoring changes the code, not the
-method. Every place where the original code deviated from the thesis is a
-configuration switch with the thesis as default (`grid.assignment`,
-`model.dropout_rate`, `model.embedding_dims`, `model.fitting_res_blocks`, ...).
-`configs/legacy-head.toml` sets all of them to the behaviour of the original code
-at commit `9413bfd`. The golden fixtures in `tests/fixtures/golden/` were generated
-from the **unchanged** original code (exported with `git archive 9413bfd`;
-generators in `tests/golden/`). The golden tests check grid, descriptors, dataset,
-model outputs and training steps of `lrmlp` against them in the legacy profile. The
-benchmarks repeat the equivalence check on larger workloads
-([benchmarks.md](benchmarks.md#equivalence)).
+method. Most deviations of the original code from the thesis are configuration
+switches (`grid.assignment`, `model.dropout_rate`, `model.embedding_dims`,
+`model.fitting_res_blocks`, `train.lr_staircase`, `grid.sort_neighbours`, ...), and
+`configs/legacy-head.toml` selects the behaviour of the original code at commit
+`9413bfd` for them. Most switches default to the thesis; `train.lr_staircase` and
+`grid.sort_neighbours` keep the legacy behaviour as documented decisions (A07,
+A17). The deviations without a switch are kept or removed as documented decisions
+(A06, A08, A10, A11, A14, A15; see
+[methodology.md](methodology.md#deviations-and-decisions)). The golden fixtures in
+`tests/fixtures/golden/` were generated from the **unchanged** original code
+(exported with `git archive 9413bfd`, tag `legacy-thesis-code`, see
+[README](../README.md#the-original-code); generators in `tests/golden/`). The
+golden tests check grid, descriptors, dataset, model outputs and training steps of
+`lrmlp` against them in the legacy profile. The benchmarks repeat the equivalence
+check on larger workloads ([benchmarks.md](benchmarks.md#equivalence)).
 
 **Speed without changing results.** Descriptors are vectorised per molecule in
 NumPy and computed once. Training uses one `tf.function` with a fixed input

@@ -41,7 +41,7 @@ BEGIN_MANUAL = "<!-- BEGIN MANUAL ANALYSIS -->"
 END_MANUAL = "<!-- END MANUAL ANALYSIS -->"
 DEFAULT_MANUAL = "_No manual analysis yet._"
 
-# Default-change rule for train.jit_compile and train.steps_per_execution (plan section 4.4).
+# Default-change rule for train.jit_compile and train.steps_per_execution.
 MIN_GAIN = 0.15
 
 WORKLOAD_LABEL = {"aspirin": "aspirin-like", "stachyose": "stachyose-like"}
@@ -375,6 +375,7 @@ def env_table(legacy: dict[str, Any], new: dict[str, Any]) -> str:
         ("intra_op_threads", "TF intra-op threads (0 = default)"),
         ("git_sha", "git SHA (working tree)"),
         ("git_dirty_src_or_benchmarks", "uncommitted changes in src/ or benchmarks/"),
+        ("measured_tree", "measured code state (commit)"),
         ("legacy_commit", "legacy commit"),
     ]
     rows = []
@@ -602,7 +603,7 @@ def recommendation_section(rec: dict[str, Any], new: dict[str, Any]) -> list[str
         f"{pct(g['spe8_at_xla1'])} with XLA.",
         "",
         f"Rule: a default changes only with a gain of at least {MIN_GAIN * 100:.0f} % and a "
-        "passed equivalence check (plan section 4.4). The benchmark itself never changes "
+        "passed equivalence check. The benchmark itself never changes "
         "defaults. Settings of the measured code: "
         + "; ".join(
             f"{tag} `steps_per_execution = {k}`, `jit_compile = {str(x).lower()}`"
@@ -667,7 +668,7 @@ STATIC_METHOD = """\
 """
 
 STATIC_MIXED_PRECISION = """\
-Mixed precision is not used and not benchmarked (plan section 4.4). The molecule energy
+Mixed precision is not used and not benchmarked. The molecule energy
 is the sum of the atomic energies and has a magnitude of |E| ≈ 4·10⁵ kcal/mol for
 aspirin. float16 overflows at 65 504; bfloat16 has 8 significand bits, i.e. a
 resolution of about 2·10³ kcal/mol at that magnitude, three orders of magnitude above

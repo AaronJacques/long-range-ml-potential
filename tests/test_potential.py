@@ -211,7 +211,7 @@ def test_missing_checkpoint(energy_run: RunDirectory) -> None:
         Potential.from_run(energy_run.path, epoch=9)
 
 
-# --------------------------------------------------------------------------- C3-F27
+# --------------------------------------------------------------------------- parallel descriptors
 
 
 def test_parallel_descriptors_identical(
@@ -256,7 +256,7 @@ def test_predict_n_workers_errors(energy_run: RunDirectory, frames: dict[str, np
 def test_predict_n_workers_error_message_as_serial(
     energy_run: RunDirectory, frames: dict[str, np.ndarray]
 ) -> None:
-    """C3-F29: the parallel path reports a bad frame exactly like the serial path."""
+    """The parallel path reports a bad frame exactly like the serial path."""
     pot = Potential.from_run(energy_run.path)
     pos = frames["R"][:20].copy()
     pos[13, 5] = pos[13, 4]  # two coincident atoms (B12)

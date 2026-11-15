@@ -1,4 +1,4 @@
-"""Keras 3 model with legacy weights reproduces the legacy outputs (model M-1, T03 golden)."""
+"""Keras 3 model with legacy weights reproduces the legacy outputs (golden model M-1)."""
 
 from __future__ import annotations
 

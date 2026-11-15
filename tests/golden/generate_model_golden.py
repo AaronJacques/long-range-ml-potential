@@ -1,9 +1,10 @@
 """Generate the model, training, schedule and evaluation golden fixtures from the legacy code.
 
-Run in the golden env (legacy code needs TF 2.21 + tf_keras)::
+Run in a legacy env (Python 3.12, TF 2.21, tf-keras, pandas:
+``pip install -e ".[legacy]"``, e.g. ``.venv``)::
 
     TF_USE_LEGACY_KERAS=1 PYTHONDONTWRITEBYTECODE=1 \\
-        .overhaul/env/venv-py312-tf221/bin/python tests/golden/generate_model_golden.py [--check]
+        python tests/golden/generate_model_golden.py [--check]
 
 Model golden M-1 on dataset G-B (grid 1.0, l_max 2, all 60 frames of
 ``synthetic_small.npz``, split 0.1/0.1/42):
@@ -24,9 +25,10 @@ Model golden M-1 on dataset G-B (grid 1.0, l_max 2, all 60 frames of
 ``manifest_model.json``
     Versions, legacy commit, all parameters, layer tables and sha256 of every file.
 
-Reads ``synthetic_small.npz`` from ``tests/fixtures`` (written by T02) and writes
-into ``--out`` (default ``tests/fixtures/golden``). ``--check`` regenerates
-everything in a temp dir and compares it bit for bit with the committed files.
+Reads ``synthetic_small.npz`` from ``tests/fixtures`` (written by
+``generate_data_golden.py``) and writes into ``--out`` (default ``tests/fixtures/golden``).
+``--check`` regenerates everything in a temp dir and compares it bit for bit with the
+committed files.
 
 Observation hooks (the legacy code itself is not modified):
 

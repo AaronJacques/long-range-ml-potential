@@ -53,7 +53,8 @@ The key layout is documented in `tests/golden/fixtures.py`, which also provides
 the loaders (`load_descriptor_golden`, `load_dataset_golden`, `split_ragged`,
 `to_input_order`).
 
-Legacy behaviour these files freeze (plan.md Appendix A):
+Legacy behaviour these files freeze (see also
+[docs/methodology.md](../../docs/methodology.md#deviations-and-decisions)):
 
 - Rows are in **cell traversal order** (cells lexicographic by grid index, atoms
   in input order within a cell), not input order. `order[k]` is the input index
@@ -95,12 +96,13 @@ reproducible.
 
 ## Regeneration
 
-Needs the golden env (legacy code, TF 2.21 + tf_keras). The legacy code is taken
+Needs a legacy env: Python 3.12 with TF 2.21, tf-keras and pandas
+(`pip install -e ".[legacy]"`, e.g. `.venv`), run with `TF_USE_LEGACY_KERAS=1`. The legacy code is taken
 from `git archive 9413bfd` into a temp dir and never imported from the working
 tree.
 
 ```sh
-G=.overhaul/env/venv-py312-tf221/bin/python
+G=.venv/bin/python   # any env with the extra "legacy"
 TF_USE_LEGACY_KERAS=1 PYTHONDONTWRITEBYTECODE=1 $G tests/golden/generate_data_golden.py          # write
 TF_USE_LEGACY_KERAS=1 PYTHONDONTWRITEBYTECODE=1 $G tests/golden/generate_data_golden.py --check  # OK: identical
 TF_USE_LEGACY_KERAS=1 PYTHONDONTWRITEBYTECODE=1 $G tests/golden/generate_model_golden.py          # write

@@ -1,7 +1,7 @@
 """Golden regression of ``lrmlp.descriptors`` against the legacy ``create_matrices``.
 
-The fixtures (T02) hold the legacy rows per frame in legacy atom order; ``order``
-maps each legacy position to the input atom index (B01).
+The fixtures (``generate_data_golden.py``) hold the legacy rows per frame in legacy
+atom order; ``order`` maps each legacy position to the input atom index (B01).
 """
 
 from __future__ import annotations

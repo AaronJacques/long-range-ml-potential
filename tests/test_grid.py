@@ -455,7 +455,7 @@ def test_cell_aggregates_rejects_mismatch() -> None:
 
 @pytest.mark.parametrize("mode", ["thesis", "legacy"])
 def test_cell_aggregates_species_columns(mode: str) -> None:
-    """C2-F19: the compact counts equal the selected columns of the full m_max layout."""
+    """The compact counts equal the selected columns of the full m_max layout."""
     rng = np.random.default_rng(7)
     pos = np.round(rng.uniform(-8.0, 8.0, size=(40, 3)) * 64.0) / 64.0
     z = rng.choice([1, 6, 7, 8, 101], size=40)

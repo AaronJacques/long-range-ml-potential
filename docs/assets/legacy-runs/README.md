@@ -1,4 +1,4 @@
-# Legacy training plots (`Images/` until T16)
+# Legacy training plots (formerly `Images/`)
 
 These files were tracked in `Images/` and were moved here unchanged with `git mv`
 (`git log --follow` shows their history). They are kept as a record of early
@@ -31,7 +31,8 @@ version (January 2024); it does not clearly match `Neural-Network/Model.py@9413b
 
 The legacy `Training.py` named a checkpoint folder
 `Model-{dataset folder}-DS-{initial learning rate}-lr-{decay steps}-decay-steps{HH-MM-SS}`,
-each value **before** its label (B12), and the plots were saved as `plots_<folder>`.
+each value **before** its label (legacy defect
+[B09](../../methodology.md#fixed-defects-of-the-legacy-code)), and the plots were saved as `plots_<folder>`.
 For example
 
 ```
@@ -44,7 +45,7 @@ plots_Model-aspirin_max_local_level_6_grid_size_1_n_samples_50000-DS-0.00025-lr-
 | `DS` | separator after the dataset name |
 | `0.00025-lr` | initial learning rate η = 2.5·10⁻⁴ (5·10⁻⁴ in most folders) |
 | `12000.0-decay-steps` | decay steps of the loss weights p_E, p_F (`Hyperparameters.decay_steps`), not of the learning rate |
-| `13-45-22` | start time of the run (no date, B12) |
+| `13-45-22` | start time of the run (no date, B09) |
 
 Each folder holds `energy_loss.png`, `force_loss.png`, `total_loss.png` (training and
 validation losses over the epochs) and `weights.png` (the loss weights p_E, p_F over

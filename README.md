@@ -89,8 +89,9 @@ for the legacy benchmarks). For development: `pip install -e ".[dev,plot,tune]"`
 TensorBoard is optional. `pip install -e ".[plot,tune]"` additionally enables
 TensorBoard logging (scalars in the run's `tb/` directory) and the hyperparameter
 search. Without it, `lrmlp train` writes the training log, configuration, best
-epoch and checkpoints as usual and logs one INFO line that TensorBoard is not
-installed.
+epoch and checkpoints as usual, writes no `tb/` directory and logs one INFO line
+that TensorBoard is not installed. `lrmlp tune` stops with an error that names the
+extra `tune`; `lrmlp tune --dry-run` works without it.
 
 ## Quickstart
 
@@ -163,9 +164,16 @@ Comparison with other methods on the same datasets [16], MAE in kcal/mol
 | Ac-Ala3-NHMe | 4.039 | – | 0.391 |
 | Stachyose | 5.841 | – | 4.002 |
 
-The thesis concludes that the long-range part clearly helps only for Paracetamol.
-It finds the result very sensitive to $K_1$ and $K_2$, and it notes that no
-systematic hyperparameter tuning was possible (p. 53, Sec. 7.5).
+The thesis concludes that adding long-range interactions does **not significantly
+improve** the predictions (p. 53). The only noticeable improvement is for
+Paracetamol. The thesis notes that this may be because only Paracetamol happened to
+find very good parameters, since no systematic hyperparameter tuning was possible,
+and that the outcome is particularly sensitive to $K_1$ and $K_2$ (p. 53; Sec. 7.5,
+p. 58). The weight distributions suggest that the network learns to ignore the
+long-range contributions (Fig. 5.3, p. 53/55). sGDML gives significantly better
+predictions for all four molecules. Only for Stachyose does the MAE come close,
+which the thesis takes as a hint that the approach may perform better for larger
+molecules (Tab. 6.1, p. 56).
 
 ### Limits
 
@@ -218,16 +226,32 @@ notebooks/          training_curves.ipynb (figures of chapter 5 from runs)
 docs/               documentation, the thesis PDF, legacy plots
 ```
 
-`data/` and `runs/` are created by the commands and are ignored by git. The original
-code (`Neural-Network/`) was removed and is still available in the history at commit
-`9413bfd` (`git archive 9413bfd Neural-Network`).
+`data/` and `runs/` are created by the commands and are ignored by git.
+
+### The original code
+
+The original code (`Neural-Network/`) was removed from the working tree. It is
+available in the history as the annotated tag `legacy-thesis-code`, which points to
+commit `9413bfd` (10.10.2024). To extract it into a directory `../legacy` next to
+the repository:
+
+```sh
+mkdir ../legacy && git archive legacy-thesis-code Neural-Network | tar -x -C ../legacy
+```
+
+(`git archive 9413bfd Neural-Network | tar -x -C ../legacy` does the same.) The golden
+fixture generators (`tests/golden/`) and the legacy benchmarks (`benchmarks/`)
+export the original code by the commit hash `9413bfd`. Keep that commit reachable:
+push the tag (`git push origin legacy-thesis-code`) and merge this branch with a
+merge commit or a rebase, not a squash merge, so that `9413bfd` stays in the history
+of `main`.
 
 ## Documentation
 
 - [docs/index.md](docs/index.md): overview of all pages
 - [docs/methodology.md](docs/methodology.md): the method with references to the
-  thesis, deviations of the original code (A01-A17), open questions (F1-F5),
-  invariances and limitations
+  thesis, deviations of the original code (A01-A17), open questions (F1-F7), fixed
+  defects of the legacy code (B01-B19), invariances and limitations
 - [docs/configuration.md](docs/configuration.md): every configuration field, presets,
   `--set` overrides
 - [docs/reproducing.md](docs/reproducing.md): reproducing the thesis experiments

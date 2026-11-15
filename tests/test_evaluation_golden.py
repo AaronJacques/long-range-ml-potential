@@ -1,6 +1,7 @@
 """Golden regression of ``lrmlp.evaluation`` against the legacy ``evaluate.py`` (model M-1).
 
-The legacy test MAE (``eval_lr_energy.json``, T03) was computed with the weights of
+The legacy test MAE (``eval_lr_energy.json`` of ``generate_model_golden.py``) was
+computed with the weights of
 ``train_lr_energy.npz`` (one epoch on the ``golden_legacy`` profile) on the test split
 of the same data. Here the dataset is rebuilt with ``golden_legacy.toml``, the weights
 are written as checkpoint of epoch 0 into a run directory and :func:`evaluate` must

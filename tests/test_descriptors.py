@@ -543,7 +543,7 @@ def test_no_tensorflow_import() -> None:
 @pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize("sort", [False, True])
 def test_species_counts_are_columns_of_full_counts(mode: str, sort: bool) -> None:
-    """C2-F19: ``species=`` only selects count columns; all other rows are unchanged."""
+    """``species=`` only selects count columns; all other rows are unchanged."""
     rng = np.random.default_rng(11)
     pos, z = _random_molecule(rng, 30, BOX["G-B"])
     grid = _grid("G-B", mode, sort_neighbours=sort)
@@ -556,7 +556,7 @@ def test_species_counts_are_columns_of_full_counts(mode: str, sort: bool) -> Non
 
 
 def test_compact_species_counts_are_guarded() -> None:
-    """C2-F23: compact counts cannot be padded or read as F_i rows by mistake."""
+    """Compact counts cannot be padded or read as F_i rows by mistake."""
     rng = np.random.default_rng(12)
     pos, z = _random_molecule(rng, 20, BOX["G-B"])
     z[:3] = [1, 6, 8]

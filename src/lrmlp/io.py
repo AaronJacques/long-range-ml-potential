@@ -17,8 +17,8 @@ An ``.npz`` archive with the keys of the sGDML datasets [16] (thesis Sec. 4.3.1)
     Atomic numbers, shape (N,), the same for every frame.
 
 Further keys (``name``, ``theory``, ``md5``, ...) are ignored. The archive is
-opened once, inside a context manager, and every array is read exactly once
-(P10). Pickled objects are never loaded.
+opened once, inside a context manager, and every array is read exactly once.
+Pickled objects are never loaded.
 
 The module depends on NumPy only.
 """

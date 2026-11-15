@@ -105,6 +105,7 @@ import os
 import secrets
 import shutil
 import sys
+import threading
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -373,6 +374,45 @@ WORKER_THREAD_ENV = (
 )
 
 
+class _ChildThreadEnv:
+    """Reference-counted, thread-safe override of :data:`WORKER_THREAD_ENV`.
+
+    Several threads may start worker pools at the same time (e.g. two
+    ``build_dataset`` or ``Potential.predict(n_workers > 1)`` calls). The first
+    entry saves the parent's values and sets the variables to ``"1"``; later
+    entries only count. The parent's values are restored when the last block
+    exits, so an overlapping block never saves the ``"1"`` of another one as the
+    "previous" value.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._users = 0
+        self._saved: dict[str, str | None] = {}
+
+    def enter(self) -> None:
+        with self._lock:
+            if self._users == 0:
+                self._saved = {name: os.environ.get(name) for name in WORKER_THREAD_ENV}
+                os.environ.update(dict.fromkeys(WORKER_THREAD_ENV, "1"))
+            self._users += 1
+
+    def exit(self) -> None:
+        with self._lock:
+            self._users -= 1
+            if self._users > 0:
+                return
+            for name, value in self._saved.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+            self._saved = {}
+
+
+_CHILD_THREAD_ENV = _ChildThreadEnv()
+
+
 @contextlib.contextmanager
 def _single_threaded_children() -> Iterator[None]:
     """Let child processes started in this block use one BLAS/OpenMP thread each.
@@ -382,19 +422,15 @@ def _single_threaded_children() -> Iterator[None]:
     parent's main module first), so the variables of :data:`WORKER_THREAD_ENV` are
     set in ``os.environ`` while the workers are started and inherited by them. The
     parent's already loaded libraries are not affected, and the previous values
-    are restored on exit. Without this, every worker starts a thread pool with one
-    thread per CPU and N workers oversubscribe the CPU (``docs/benchmarks.md``).
+    are restored when the last of several overlapping blocks (other threads)
+    exits. Without this, every worker starts a thread pool with one thread per CPU
+    and N workers oversubscribe the CPU (``docs/benchmarks.md``).
     """
-    saved = {name: os.environ.get(name) for name in WORKER_THREAD_ENV}
-    os.environ.update(dict.fromkeys(WORKER_THREAD_ENV, "1"))
+    _CHILD_THREAD_ENV.enter()
     try:
         yield
     finally:
-        for name, value in saved.items():
-            if value is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = value
+        _CHILD_THREAD_ENV.exit()
 
 
 def _worker_map[T, R](fn: Callable[[T], R], items: Sequence[T], n_workers: int) -> list[R]:

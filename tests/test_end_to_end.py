@@ -1,4 +1,4 @@
-"""End-to-end runs of the CLI chain ``prepare → train → evaluate → predict`` (plan §5.1).
+"""End-to-end runs of the CLI chain ``prepare → train → evaluate → predict``.
 
 Every chain runs in its own temporary working directory on the synthetic fixture:
 ``smoke.toml`` (thesis mode, 2 epochs) and ``golden_legacy.toml`` (legacy profile

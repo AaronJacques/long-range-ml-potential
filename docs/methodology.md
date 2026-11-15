@@ -372,8 +372,16 @@ reproduced in this repository, which contains no real data):
 
 (Tab. 5.3, p. 53. Tab. 6.1, p. 56, compares the long-range values with
 DeepPot-SE [14] (Aspirin 0.155) and sGDML [17] (0.113, 0.047, 0.391, 4.002).)
-The thesis notes that the result is "particularly sensitive to the choice of
-parameters $K_1$ and $K_2$" (p. 53).
+The thesis concludes: "adding long-range interactions does not significantly
+improve the model predictions. The only noticeable improvement is observed with
+Paracetamol" (p. 53). It adds that this could be due to the lack of systematic
+hyperparameter tuning, "leading to the possibility that only Paracetamol benefited
+from randomly finding very good parameters", and that the outcome is "particularly
+sensitive to the choice of parameters $K_1$ and $K_2$" (p. 53). The weight
+distributions (Fig. 5.3, p. 55) suggest "that the network is learning to ignore the
+long-range contributions" (p. 53). In Ch. 6 the thesis states that sGDML
+"consistently provides significantly better predictions for all the molecules
+studied"; only for Stachyose does the MAE come close (p. 56).
 
 These numbers were obtained with the legacy code, i.e. with the `"legacy"`
 assignment (A01, A02), inactive dropout (A03) and the code state at submission
@@ -381,8 +389,9 @@ assignment (A01, A02), inactive dropout (A03) and the code state at submission
 
 ## Deviations and decisions
 
-Every difference found between the legacy code at `9413bfd` and the thesis, with
-the decision taken in `lrmlp`. "Aligned" means that the new default follows the
+Every difference found between the legacy code at `9413bfd` (tag
+`legacy-thesis-code`, see [README](../README.md#the-original-code)) and the thesis,
+with the decision taken in `lrmlp`. "Aligned" means that the new default follows the
 thesis; where a switch exists, the profile `configs/legacy-head.toml` sets it to
 the legacy behaviour, and the golden tests check that path against the legacy
 code.
@@ -419,6 +428,37 @@ is no other answer.
 | F3 | Which widths apply: Fig. 4.3/4.4 (embedding `[64, 128, 128, 256]`, 3 Res-Blocks in the energy network) or the legacy HEAD `9413bfd` of 10.10.2024 (`[64, 128, 128, 128]`, 2 Res-Blocks)? HEAD changed these values after the submission (05.10.2024, title page) | **Fig. 4.3/4.4** in the molecule presets, HEAD values in `legacy-head`; both configurable (A04, A05) |
 | F4 | Force mode (direct force prediction, not part of the thesis, with the alignment bug B01, not equivariant): keep or remove? | **Keep as experimental**, default off, B01 fixed, limits documented in [Forces](#forces); no $-\nabla E$ |
 | F5 | Under which licence are code and thesis PDF published? | **No licence file.** The README states that the licence is not yet specified (all rights reserved by the author). The PDF is included as requested |
+| F6 | Fig. 5.3 (p. 55) compares, by its caption and the text of p. 53, the models with and without long range for all four molecules. For panel (c) Ac-Ala3-NHMe, `weigtht_distribution.py@9413bfd` compares epochs 116 and 131 of the **same** long-range run (`…-DS-5e-05-lr-208000.0-decay-steps13-40-55`), not the local-only run `…-DS-0.0001-lr-208000.0-decay-steps19-48-11_no_long_range` that `testing_notebook.ipynb@9413bfd` uses for Fig. A.4. The other three molecules are paired correctly. The commit postdates the submission, so it is not known whether the thesis figure was drawn from this state. Which pairing does Fig. 5.3(c) show? | **As the caption states:** `lrmlp plot-weights --run-a --run-b` and the notebook compare two runs, with and without long range. The pairing of the legacy script is not reproduced |
+| F7 | By its folder name (`…-DS-0.0001-…_no_long_range`; the name holds the initial learning rate, `Training.py@9413bfd:24`), the local-only Ac-Ala3-NHMe run of the thesis used $\eta_{init} = 10^{-4}$, while Tab. 5.2 gives $5 \cdot 10^{-5}$ (the long-range run used $5 \cdot 10^{-5}$). Was the value "Only local 4.087" of Tab. 5.3 obtained with $10^{-4}$? | **Tab. 5.2:** the preset keeps $5 \cdot 10^{-5}$ for both models. To come closer to the folder name, add `--set train.learning_rate=1e-4` to the local-only run ([reproducing.md](reproducing.md#4-presets-versus-legacy-head-what-is-comparable-with-tab-53)) |
+
+## Fixed defects of the legacy code
+
+Defects of the original code at `9413bfd` that `lrmlp` fixes. Code comments and
+tests refer to them by these IDs. Deviations from the thesis (A01-A17) are listed
+[above](#deviations-and-decisions); where a defect is also a deviation, both IDs
+are given.
+
+| ID | Legacy code (`9413bfd`) | Defect | In `lrmlp` |
+|---|---|---|---|
+| B01 | `Dataset.py:299-301` vs. `:429`, `Training.py:61-87` | Descriptor rows in cell traversal order, force labels in input order: in the force mode, atom k is trained against the force of another atom (the energy, a sum, is unaffected) | Rows always in input order (A09) |
+| B02 | `Training.py:69-71, 103-105` | Model called without `training=True`: dropout 0.2 (Fig. 4.2/4.4) is never active | `training=True` in the training step (A03) |
+| B03 | `Dataset.py:313-356`, `Constants.py:33` | Local / long-range assignment deviates from p. 43; atoms are lost | `grid.assignment = "thesis"` (A01, A02) |
+| B04 | `HyperparameterTester.py:15, 41-61` | Search cannot run: dict instead of attribute object (`AttributeError`), HParam name `lr_decay_steps` used twice, `run_name` unused (all trials in one directory), no entry point | `lrmlp.tuning.run_search` over configuration overrides |
+| B05 | `evaluate.py:10, 23` | Energy = sum over **all** outputs (energy plus three force columns of a force model); dataset signature from `Constants` | Energy = output column 0, signature from the run configuration |
+| B06 | `Training.py:242-243, 298-307, 343-345` | Squared errors labelled "kcal mol^-1" | Columns `*_mse`, unit (kcal/mol)² |
+| B07 | `Training.py:214-216, 272-274, 334-336` | NaN columns in the log of energy-only runs | Only the applicable columns |
+| B08 | `Constants.py:25, 31-32, 73, 80`, `Dataset.py:245-251, 439, 483` | Dataset folder name not derived from the grid; $N_{max}$ hard-coded (86/28); `create_dataset(grid_size=…)` takes $r_c$ from `Constants.GRID_SIZE` | One `GridConfig`, $N_{max}$ from `metadata.json`, model and dataset checked against each other |
+| B09 | `Training.py:20-24` | Run folder named by time of day only (`%H-%M-%S`, no date), "DS" holds the learning rate, no separator before the time: collisions append to another run's log | `new_run_dir` with date and a unique suffix |
+| B10 | `Constants.py:24-26`, `Training.py:25`, `Dataset.py:688-690`, `evaluate.py:49-53`, `weigtht_distribution.py`, notebook | Paths relative to the working directory, hard-coded Windows paths | Paths relative to the configuration file, CLI arguments |
+| B11 | `Dataset.py:658` | Shuffling and initialisation without seeds | `train.seed`, seeded shuffle |
+| B12 | `Dataset.py:246, 259, 328` | Coincident atoms give `1/0` or are skipped silently | `ValueError` for two distinct atoms at distance 0 (A14) |
+| B13 | `Dataset.py:393-394` | Padding of an empty entry gives shape (1, n, w) float64 | (0, n, w) float32 |
+| B14 | `Model.py:12-15, 23, 33` | `Lambda` layers and `tf.linalg` on symbolic tensors, `get_shape()`: breaks under Keras 3 | Own layers, `.weights.h5` checkpoints |
+| B15 | `Training.py:141-142, 162` | `keras.losses.MSE` on scalars: breaks under Keras 3 | Explicit ops |
+| B16 | `Model.py:151-156` | Extra `Dense` layer when local and long-range $K_1$/$K_2$ are equal | Branch removed (A06) |
+| B17 | `weigtht_distribution.py:17, 26-27, 107-115` | Python loop over every weight, model loaded twice, name list with a duplicate, hard-coded paths | `lrmlp.analysis.weights`, vectorised |
+| B18 | `testing_notebook.ipynb`, cell 2 | Plot title "…without Long Range…" regardless of the run | Title from the run configuration |
+| B19 | `Dataset.py:658`, `evaluate.py:41, 43` | Validation set shuffled every epoch; "Evaluation finished" printed twice | Validation and test without shuffling |
 
 <a id="invariances"></a>
 

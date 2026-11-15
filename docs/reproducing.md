@@ -45,9 +45,9 @@ For one molecule, with and without the long-range part:
 ```sh
 lrmlp prepare --config configs/aspirin.toml
 RUN="$(lrmlp train --config configs/aspirin.toml)"
-lrmlp evaluate --run "$RUN" --epoch best --json results/aspirin-long-range.json
+lrmlp evaluate --run "$RUN" --epoch best --json runs/results/aspirin-long-range.json
 RUN_LOCAL="$(lrmlp train --config configs/aspirin.toml --set model.use_long_range=false --set name=aspirin-local)"
-lrmlp evaluate --run "$RUN_LOCAL" --epoch best --json results/aspirin-local.json
+lrmlp evaluate --run "$RUN_LOCAL" --epoch best --json runs/results/aspirin-local.json
 ```
 
 - `prepare` computes the descriptors once and writes `data/processed/aspirin`
@@ -60,6 +60,8 @@ lrmlp evaluate --run "$RUN_LOCAL" --epoch best --json results/aspirin-local.json
 - `evaluate --epoch best` evaluates the epoch with the lowest validation energy
   MSE on the test split (p. 52). The MAE in kcal/mol is the metric of Tab. 5.3. It
   also writes `evaluation_test_<epoch>.json` into the run directory.
+- `--json` writes a copy of the result to `runs/results/`. Like the run
+  directories and the figures of step 5 (`runs/figures/`), it is ignored by git.
 
 All four molecules in one go:
 
@@ -67,9 +69,9 @@ All four molecules in one go:
 for m in paracetamol aspirin ac-ala3-nhme stachyose; do
   lrmlp prepare --config "configs/$m.toml"
   RUN="$(lrmlp train --config "configs/$m.toml")"
-  lrmlp evaluate --run "$RUN" --epoch best --json "results/$m-long-range.json"
+  lrmlp evaluate --run "$RUN" --epoch best --json "runs/results/$m-long-range.json"
   RUN_LOCAL="$(lrmlp train --config "configs/$m.toml" --set model.use_long_range=false --set "name=$m-local")"
-  lrmlp evaluate --run "$RUN_LOCAL" --epoch best --json "results/$m-local.json"
+  lrmlp evaluate --run "$RUN_LOCAL" --epoch best --json "runs/results/$m-local.json"
 done
 ```
 
@@ -127,6 +129,7 @@ The numbers of Tab. 5.3 come from the **original code**. The presets follow the
 | Residual blocks of the energy network | `[128, 128, 128]` (Fig. 4.4) | `[128, 128]` at `9413bfd` | A05, F3 |
 | $N_{max}$ | from the dataset | Tab. 5.2 values, obtained with the legacy assignment | – |
 | Execution | `steps_per_execution = 8`, `jit_compile = true` | one step per call, no XLA | technical only |
+| $\eta_{init}$ of the local-only Ac-Ala3-NHMe model | $5 \cdot 10^{-5}$ (Tab. 5.2) | $10^{-4}$ by the folder name of the thesis run | F7 |
 
 Consequences:
 
@@ -140,6 +143,11 @@ Consequences:
 - It is not known which widths the code had at submission (F3). The original code
   changed them after the submission date, so even the legacy settings may not match
   the thesis runs exactly.
+- By its folder name, the local-only Ac-Ala3-NHMe run of the thesis was trained
+  with $\eta_{init} = 10^{-4}$, not with the $5 \cdot 10^{-5}$ of Tab. 5.2 (open
+  question [F7](methodology.md#open-questions)). The preset keeps the value of
+  Tab. 5.2. To come closer to that run, add `--set train.learning_rate=1e-4` to the
+  local-only `train` command of Ac-Ala3-NHMe.
 - `configs/legacy-head.toml` is the exact state of `Constants.py` at `9413bfd`, a
   mixed state: Aspirin grid and data with the $K$ values and decay steps of
   Stachyose. It is the reference of the golden tests and benchmarks, but it is
@@ -173,22 +181,25 @@ weight distributions of the models with and without long range. Both need the
 extra `plot` (`pip install -e ".[plot]"`):
 
 ```sh
-lrmlp plot-log --run "$RUN" --output figures/paracetamol --skip 19
-lrmlp plot-log --run "$RUN_LOCAL" --output figures/paracetamol --skip 19
-lrmlp plot-weights --run-a "$RUN" --run-b "$RUN_LOCAL" --output figures/paracetamol-weights.pdf
+lrmlp plot-log --run "$RUN" --output runs/figures/paracetamol --skip 19
+lrmlp plot-log --run "$RUN_LOCAL" --output runs/figures/paracetamol --skip 19
+lrmlp plot-weights --run-a "$RUN" --run-b "$RUN_LOCAL" --output runs/figures/paracetamol-weights.pdf
 ```
 
 Here `RUN` and `RUN_LOCAL` are the two Paracetamol runs of step 2. The notebook
 [`notebooks/training_curves.ipynb`](../notebooks/training_curves.ipynb) draws the
 figures for all molecules: enter the run directories in `RUN_DIRS` at the top and
-run all cells. The plots in `docs/assets/legacy-runs/` are from early runs of the
-original code and are **not** the figures of the thesis
+run all cells. For Ac-Ala3-NHMe, the original plotting script compared two epochs
+of the same long-range run instead of the runs with and without long range (open
+question [F6](methodology.md#open-questions)); `lrmlp` compares the two runs, as the
+caption of Fig. 5.3 states. The plots in `docs/assets/legacy-runs/` are from early
+runs of the original code and are **not** the figures of the thesis
 ([docs/assets/legacy-runs/README.md](assets/legacy-runs/README.md)).
 
 ## 6. Hyperparameter search (optional)
 
 The values of Tab. 5.2 come from hyperparameter tuning, but the thesis states that
-systematic tuning was not possible (p. 52-53, Sec. 7.5). `lrmlp tune` trains one
+systematic tuning was not possible (p. 52-53; Sec. 7.5, p. 58). `lrmlp tune` trains one
 model per point of a grid:
 
 ```sh

@@ -1,6 +1,7 @@
 """Golden regression of one training epoch against the legacy ``Training.start_training``.
 
-The golden fixture (T03, ``train_lr_energy.npz``) holds the weights of model M-1
+The golden fixture (``train_lr_energy.npz`` of ``generate_model_golden.py``) holds the
+weights of model M-1
 after one epoch of the unchanged legacy code on dataset G-B (``golden_legacy.toml``,
 no shuffling, start weights ``model_lr_energy.npz``). The legacy step never
 activated dropout (B02), so the profile uses ``dropout_rate = 0``; the energy loss

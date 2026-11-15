@@ -6,7 +6,7 @@ A training run writes everything into one directory
     config.json                      resolved ExperimentConfig (to_dict)
     dataset.json                     copy of the dataset metadata plus its path
     training_log.csv                 one row per epoch
-    tb/                              TensorBoard event files
+    tb/                              TensorBoard event files (only if tensorboard is installed)
     checkpoints/epoch_0001.weights.h5
     best.json                        {"epoch": ..., "val_energy_mse": ...}
     evaluation_<split>_<epoch>.json  evaluation results
@@ -17,6 +17,7 @@ sorted keys. The module uses the standard library only.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -28,9 +29,21 @@ from typing import Any
 
 from lrmlp.config import ExperimentConfig
 
-__all__ = ["RunDirectory", "new_run_dir", "read_json", "write_json"]
+__all__ = ["RunDirectory", "new_run_dir", "read_json", "tensorboard_available", "write_json"]
 
 _CHECKPOINT_RE = re.compile(r"^epoch_(\d{4,})\.weights\.h5$")
+
+
+def tensorboard_available() -> bool:
+    """Return whether the optional ``tensorboard`` package is installed.
+
+    TensorBoard comes with the extra ``tune``. Without it, training writes no
+    ``tb/`` directory and ``lrmlp tune`` refuses to run (``--dry-run`` still works).
+    """
+    try:
+        return importlib.util.find_spec("tensorboard") is not None
+    except (ImportError, ValueError):
+        return False
 
 
 def write_json(path: str | Path, data: Any) -> Path:
@@ -191,7 +204,11 @@ class RunDirectory:
     # ------------------------------------------------------------------ files
 
     def create(
-        self, config: ExperimentConfig | Mapping[str, Any], dataset_metadata: Mapping[str, Any]
+        self,
+        config: ExperimentConfig | Mapping[str, Any],
+        dataset_metadata: Mapping[str, Any],
+        *,
+        tensorboard: bool = True,
     ) -> RunDirectory:
         """Create the layout and write ``config.json`` and ``dataset.json``.
 
@@ -202,6 +219,8 @@ class RunDirectory:
             :meth:`ExperimentConfig.to_dict`.
         dataset_metadata : Mapping
             Copy of the dataset metadata including the dataset path.
+        tensorboard : bool, default True
+            Create ``tb/``. ``False`` when TensorBoard is not installed.
 
         Returns
         -------
@@ -216,7 +235,8 @@ class RunDirectory:
         if self.path.exists() and (not self.path.is_dir() or any(self.path.iterdir())):
             raise FileExistsError(f"run directory {self.path} already exists and is not empty")
         self.path.mkdir(parents=True, exist_ok=True)
-        self.tb_dir.mkdir()
+        if tensorboard:
+            self.tb_dir.mkdir()
         self.checkpoint_dir.mkdir()
         data = config.to_dict() if isinstance(config, ExperimentConfig) else dict(config)
         write_json(self.config_path, data)

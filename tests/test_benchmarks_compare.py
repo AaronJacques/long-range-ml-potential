@@ -1,4 +1,4 @@
-"""Labels of the training rows in ``benchmarks/compare.py`` (C4-K4)."""
+"""Labels and metadata rows of the generated page in ``benchmarks/compare.py``."""
 
 from __future__ import annotations
 
@@ -44,3 +44,19 @@ def test_recorded_defaults_label_the_rows(compare: ModuleType) -> None:
     labels = compare.train_defaults(_new(recorded))
     assert labels["preset aspirin"] == (8, True)
     assert labels["preset stachyose"] == (1, False)
+
+
+def test_env_table_shows_measured_tree(compare: ModuleType) -> None:
+    """A result measured on a dirty tree names the measured commit (``measured_tree``)."""
+    meta = {"git_sha": "aaa", "git_dirty_src_or_benchmarks": True, "measured_tree": "bbb"}
+    table = compare.env_table({"metadata": meta}, {"metadata": {"git_sha": "aaa"}})
+    assert "| measured code state (commit) | `bbb` | `—` |" in table
+
+
+def test_reference_results_name_the_measured_commit() -> None:
+    import json
+
+    for path in sorted((COMPARE.parent / "results").glob("reference-*.json")):
+        meta = json.loads(path.read_text(encoding="utf-8"))["metadata"]
+        if meta["git_dirty_src_or_benchmarks"]:
+            assert len(meta.get("measured_tree", "")) == 40, path.name

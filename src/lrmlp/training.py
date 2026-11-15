@@ -41,14 +41,15 @@ What is new is the execution:
   ``segment_ids``), with the same result as one molecule per call.
 * The log has no NaN columns (B07), squared errors are called ``*_mse`` (B06),
   unit (kcal/mol)² resp. (kcal/(mol·Å))², and mixed precision is not used
-  (|E| ≈ 4·10⁵ kcal/mol, plan §4.4).
+  (|E| ≈ 4·10⁵ kcal/mol, see ``docs/benchmarks.md``).
 
 Run directory (:mod:`lrmlp.run`)
 --------------------------------
 ``config.json`` (resolved configuration, K1 as integers), ``dataset.json``
 (dataset metadata plus ``path``), ``training_log.csv`` (one row per epoch, see
 :func:`log_columns`), ``tb/`` (TensorBoard scalars of every log column per epoch
-and ``step/train_loss`` at every log interval), ``checkpoints/epoch_{:04d}.weights.h5``
+and ``step/train_loss`` at every log interval; only if TensorBoard is installed,
+otherwise one INFO line says so), ``checkpoints/epoch_{:04d}.weights.h5``
 (``train.checkpoints``: ``"best_and_last"`` keeps the best and the last epoch,
 ``"all"`` every epoch) and ``best.json`` (``{"epoch", "val_energy_mse"}``).
 Epochs are counted from 1.
@@ -73,6 +74,7 @@ import keras
 import numpy as np
 import tensorflow as tf
 
+from lrmlp import run as run_module
 from lrmlp.config import ExperimentConfig
 from lrmlp.dataset import (
     DescriptorDataset,
@@ -113,7 +115,7 @@ FORCE_COLUMNS = ("train_force_mse", "val_force_mse", "p_energy", "p_force")
 
 
 def log_columns(predict_forces: bool) -> tuple[str, ...]:
-    """Columns of ``training_log.csv`` (plan §1.7).
+    """Columns of ``training_log.csv`` (``docs/data-format.md``).
 
     Parameters
     ----------
@@ -411,8 +413,17 @@ class Trainer:
 
         if run_dir is None:
             run_dir = new_run_dir(tc.run_root, config.name)
+        # TensorBoard is optional (extra "tune"): without it, tf.summary.scalar raises.
+        self._tensorboard = run_module.tensorboard_available()
+        if not self._tensorboard:
+            logger.info(
+                "TensorBoard is not installed: no tb/ directory is written "
+                '(install the extra "tune" for TensorBoard logging)'
+            )
         self.run = RunDirectory(run_dir).create(
-            self.config, {**self.dataset.metadata, "path": str(self.dataset.path.resolve())}
+            self.config,
+            {**self.dataset.metadata, "path": str(self.dataset.path.resolve())},
+            tensorboard=self._tensorboard,
         )
 
     # ------------------------------------------------------------------ steps
@@ -667,7 +678,7 @@ class Trainer:
         """
         tc = self.config.train
         columns = log_columns(self._forces)
-        writer = tf.summary.create_file_writer(str(self.run.tb_dir))
+        writer = tf.summary.create_file_writer(str(self.run.tb_dir)) if self._tensorboard else None
         history: list[dict[str, float]] = []
         best_epoch, best_mse = 0, math.inf
         try:
@@ -693,10 +704,11 @@ class Trainer:
                     history.append(row)
                     log.writerow({c: repr(v) for c, v in row.items()})
                     fh.flush()
-                    with writer.as_default():
-                        for c in columns[1:]:
-                            tf.summary.scalar(c, row[c], step=epoch)
-                    writer.flush()
+                    if writer is not None:
+                        with writer.as_default():
+                            for c in columns[1:]:
+                                tf.summary.scalar(c, row[c], step=epoch)
+                        writer.flush()
                     bad = [c for c in columns if not math.isfinite(row[c])]
                     if bad:
                         raise FloatingPointError(
@@ -704,7 +716,7 @@ class Trainer:
                             f"(see {self.run.log_path})"
                         )
                     # Checkpoint first, then best.json, then pruning: best.json never
-                    # points to a missing or partial checkpoint (C3-F25).
+                    # points to a missing or partial checkpoint.
                     self._save_checkpoint(epoch)
                     if row["val_energy_mse"] < best_mse:
                         best_epoch, best_mse = epoch, row["val_energy_mse"]
@@ -721,7 +733,8 @@ class Trainer:
                         row["seconds"],
                     )
         finally:
-            writer.close()
+            if writer is not None:
+                writer.close()
         return TrainingResult(
             run_dir=self.run.path,
             best_epoch=best_epoch,

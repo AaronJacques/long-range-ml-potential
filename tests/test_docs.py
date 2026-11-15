@@ -370,6 +370,11 @@ def test_readme_reports_thesis_results() -> None:
     for value in ("0.113", "0.047", "0.391", "4.002", "0.155"):
         assert value in text, f"Tab. 6.1 value {value} missing"
     assert "Tab. 5.3, p. 53" in text and "Tab. 6.1, p. 56" in text
+    # The conclusion of the thesis (p. 53, p. 56), not a stronger claim.
+    flat = " ".join(text.split())
+    assert "does **not significantly improve** the predictions (p. 53)" in flat
+    assert "sGDML gives significantly better predictions for all four molecules" in flat
+    assert "clearly helps" not in flat
 
 
 def test_readme_license_section() -> None:
@@ -444,8 +449,12 @@ def test_readme_quickstart_runs(tmp_path: Path) -> None:
 @pytest.mark.slow
 def test_architecture_example_runs(tmp_path: Path) -> None:
     (code,) = _blocks(_read(ARCHITECTURE), ("python",))
+    # Run it as a saved script, the way a reader does: with "python -c" spawn does
+    # not re-import the main module, which would hide a missing __main__ guard.
+    script = tmp_path / "example.py"
+    script.write_text(code, encoding="utf-8")
     proc = subprocess.run(
-        [sys.executable, "-c", code],
+        [sys.executable, str(script)],
         cwd=REPO_ROOT,
         env=_env(tmp_path),
         capture_output=True,

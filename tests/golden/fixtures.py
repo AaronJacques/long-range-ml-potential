@@ -261,7 +261,7 @@ def legacy_expected_counts(
     return cls["local"].sum(axis=1).astype(np.int64), lr
 
 
-# --- model, training, schedule and evaluation golden (T03, generate_model_golden.py) ---
+# --- model, training, schedule and evaluation golden (generate_model_golden.py) ---
 #
 # model_<variant>.npz (variant in lr_energy, local_energy, lr_forces), model M-1 on G-B,
 # plus the forward-only lr_energy_k1 (M-1 with explicit K1 = (6, 24) != N_max = (10, 20);

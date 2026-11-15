@@ -1,6 +1,7 @@
 """Golden regression of ``lrmlp.dataset.build_dataset`` against the legacy ``create_dataset``.
 
-The fixtures (T02, ``data_dataset_<GA|GB>.npz``) hold the three legacy pickles:
+The fixtures (``data_dataset_<GA|GB>.npz`` of ``tests/golden/generate_data_golden.py``)
+hold the three legacy pickles:
 split indices in stored order, energies, forces (input order) and the padded
 arrays in legacy atom order; ``__order`` maps every legacy position to the
 input atom index (B01).

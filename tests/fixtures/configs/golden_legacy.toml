@@ -1,4 +1,4 @@
-# Golden legacy model M-1 (tests/golden, task T03): the legacy code path on the
+# Golden legacy model M-1 (tests/golden/generate_model_golden.py): the legacy code path on the
 # synthetic fixture. Training with this profile must reproduce the golden outputs.
 # Relative paths are resolved relative to this file.
 

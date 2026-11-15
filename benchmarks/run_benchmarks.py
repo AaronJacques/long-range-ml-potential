@@ -106,7 +106,7 @@ INFER_BATCH = 256
 WARMUP_EPOCHS, TIMED_EPOCHS = 1, 2
 TRAIN_VARIANTS = ((1, False), (1, True), (8, False), (8, True))  # (steps_per_execution, xla)
 
-# Equivalence tolerances (plan section 4.6).
+# Equivalence tolerances (benchmarks/README.md).
 DESC_ATOL = DESC_RTOL = 1e-6
 ENERGY_RTOL, ENERGY_ATOL_PER_ATOM = 1e-5, 1e-5
 XLA_STEPS, XLA_RTOL, XLA_ATOL = 100, 1e-4, 1e-6
@@ -1123,7 +1123,7 @@ class NewBench:
         mean_rel = abs(losses[0].mean() - losses[1].mean()) / max(abs(losses[0].mean()), 1e-30)
         weights = self._compare_weights(plain, xla, XLA_RTOL, XLA_ATOL)
         steps = [int(plain.optimizer.iterations), int(xla.optimizer.iterations)]
-        # Criterion as for training in plan section 4.6: weights rtol/atol and the mean
+        # Criterion as for training (benchmarks/README.md): weights rtol/atol and the mean
         # loss rtol. The per-step relative loss difference is reported only: a single
         # squared energy error can be close to 0, where a relative error is meaningless.
         return {

@@ -17,7 +17,7 @@ Potentials with Long Range Interaction* (Aaron Schulz, TUM, 2024). Start with th
 
 | Page | Content |
 |---|---|
-| [methodology.md](methodology.md) | The method with chapter, equation and page references; neighbour assignment modes; deviations of the original code (A01-A17) and decisions; open questions (F1-F5); invariances; forces; known limitations; symbols and configuration fields |
+| [methodology.md](methodology.md) | The method with chapter, equation and page references; neighbour assignment modes; deviations of the original code (A01-A17) and decisions; open questions (F1-F7); fixed defects of the legacy code (B01-B19); invariances; forces; known limitations; symbols and configuration fields |
 | [architecture.md](architecture.md) | Modules and their dependencies, data flow, public API, design decisions, extension rules |
 | [benchmarks.md](benchmarks.md) | Speed of `lrmlp` against the original code (preprocessing, input pipeline, training, inference), equivalence checks, execution defaults, missed targets |
 

@@ -1,10 +1,13 @@
 """Weight distributions of two trained runs (thesis Fig. 5.3, p. 55).
 
 Replaces ``plot_stacked_weight_distribution`` of
-``Neural-Network/weigtht_distribution.py@9413bfd`` (B17). The figure is the same:
-two step histograms ("With" / "Without" long range) of all weights of each model,
-150 common bins, ``density=True``, only weights strictly inside the boundary
-(−1, 1), font size 16, one PDF. What changes:
+``Neural-Network/weigtht_distribution.py@9413bfd`` (legacy defect B17, see
+``docs/methodology.md``). The plot style is the same: two step histograms ("With" /
+"Without" long range) of all weights of each model, 150 common bins,
+``density=True``, only weights strictly inside the boundary (−1, 1), font size 16,
+one PDF. The runs are paired as the caption of Fig. 5.3 states, a model with and
+one without long range; for Ac-Ala3-NHMe the legacy script compared two epochs of
+the same long-range run instead (open question F6). What changes:
 
 * the models are rebuilt from their run directories (:class:`lrmlp.run.RunDirectory`,
   :func:`lrmlp.model.build_model`, ``load_weights``) instead of loading ``.h5``

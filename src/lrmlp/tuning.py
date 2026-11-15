@@ -40,7 +40,9 @@ Output
     trial-0001/          HParams session (hyperparameters, best_val_energy_mse)
 
 A failing trial is recorded with status ``failed`` and its error message; the
-remaining trials still run. The preprocessed dataset is not built here: run
+remaining trials still run. The search needs TensorBoard (extra ``tune``); without
+it, :func:`run_search` raises :class:`ModuleNotFoundError` before any trial starts,
+and only ``dry_run=True`` works. The preprocessed dataset is not built here: run
 ``lrmlp prepare`` first (axes on ``grid.*`` or ``data.*`` need matching datasets).
 """
 
@@ -57,6 +59,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+from lrmlp import run as run_module
 from lrmlp.config import ExperimentConfig, load_config
 from lrmlp.run import new_run_dir, write_json
 
@@ -74,6 +77,12 @@ logger = logging.getLogger(__name__)
 
 #: Metric of a trial: lowest validation energy MSE over the epochs, (kcal/mol)².
 METRIC = "best_val_energy_mse"
+#: Error message of a search without TensorBoard (the HParams plugin is part of it).
+TENSORBOARD_REQUIRED = (
+    "lrmlp tune needs TensorBoard for its HParams logs; install the extra "
+    '"tune" (pip install -e ".[tune]"). --dry-run works without it'
+)
+
 #: Columns of ``summary.csv`` before and after the override columns.
 SUMMARY_HEAD = ("trial", "status")
 SUMMARY_TAIL = (METRIC, "best_epoch", "run_dir", "message")
@@ -418,6 +427,8 @@ def run_search(
         combination gives an invalid configuration or ``max_trials < 1``.
     FileNotFoundError
         If the dataset of the first trial does not exist (not raised in a dry run).
+    ModuleNotFoundError
+        If TensorBoard is not installed (not raised in a dry run).
     """
     if max_trials is not None and max_trials < 1:
         raise ValueError(f"max_trials must be >= 1, got {max_trials}")
@@ -447,6 +458,9 @@ def run_search(
         if n > DRY_RUN_LISTED:
             logger.info("  ... and %d more", n - DRY_RUN_LISTED)
         return results
+
+    if not run_module.tensorboard_available():
+        raise ModuleNotFoundError(TENSORBOARD_REQUIRED, name="tensorboard")
 
     from lrmlp.dataset import METADATA_FILE
 

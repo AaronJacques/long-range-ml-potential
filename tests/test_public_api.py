@@ -1,13 +1,13 @@
-"""Contract of the public API ``lrmlp.__all__`` and of the CI workflow (plan §1.4, §5.4).
+"""Contract of the public API ``lrmlp.__all__`` and of the CI workflow.
 
-The public names are exported lazily (T01): ``import lrmlp`` must not load
+The public names are exported lazily: ``import lrmlp`` must not load
 TensorFlow, every name in ``__all__`` resolves and is documented, unknown names
 raise :class:`AttributeError`. The optional subpackages ``lrmlp.tuning`` and
 ``lrmlp.analysis`` are not part of ``__all__``.
 
 The CI workflow cannot run on this machine, so its commands are checked as text
-(PyYAML is not a dependency): the jobs of plan §5.4, the coverage threshold of the
-test job and the slow job without the "no tests collected" guard (review F13).
+(PyYAML is not a dependency): the jobs lint, typecheck, test and slow, the coverage
+threshold of the test job and the slow job without the "no tests collected" guard.
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ def test_import_does_not_load_tensorflow() -> None:
 
 
 def test_numpy_only_names_do_not_load_tensorflow() -> None:
-    """Configuration and descriptors are NumPy-only (plan §1.3)."""
+    """Configuration and descriptors are NumPy-only."""
     _run_python(
         "import sys, lrmlp\n"
         "lrmlp.load_config, lrmlp.ExperimentConfig, lrmlp.compute_descriptors\n"

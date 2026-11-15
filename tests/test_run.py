@@ -77,7 +77,7 @@ def test_write_json_uses_default_file_mode(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("umask", [0o077, 0o027])
 def test_write_json_follows_current_umask(tmp_path: Path, umask: int) -> None:
-    """C2-F15: the OS applies the umask at creation; the umask itself is not touched."""
+    """The OS applies the umask at creation; the umask itself is not touched."""
     previous = os.umask(umask)
     try:
         path = write_json(tmp_path / "best.json", {"epoch": 1})
@@ -215,3 +215,33 @@ def test_resolve_epoch_rejects_bad_values(run: RunDirectory, epoch: object) -> N
 def test_checkpoint_path_rejects_bad_epochs(run: RunDirectory, epoch: object) -> None:
     with pytest.raises(ValueError, match="epoch"):
         run.checkpoint_path(epoch)  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------- optional TensorBoard
+
+
+def test_create_without_tensorboard_has_no_tb_dir(tmp_path: Path, config) -> None:  # type: ignore[no-untyped-def]
+    run = RunDirectory(tmp_path / "run").create(config, {"path": "x"}, tensorboard=False)
+    assert not run.tb_dir.exists()
+    assert sorted(x.name for x in run.path.iterdir()) == [
+        "checkpoints",
+        "config.json",
+        "dataset.json",
+    ]
+
+
+def test_tensorboard_available_follows_find_spec(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib.util
+
+    import lrmlp.run
+
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+    assert lrmlp.run.tensorboard_available() is False
+
+    def broken(name: str) -> None:
+        raise ValueError(f"{name}.__spec__ is None")
+
+    monkeypatch.setattr(importlib.util, "find_spec", broken)
+    assert lrmlp.run.tensorboard_available() is False
+    monkeypatch.undo()
+    assert lrmlp.run.tensorboard_available() is True  # .venv has the extra "tune"

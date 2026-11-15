@@ -1,6 +1,6 @@
 """Inference API: energies (and forces) of arbitrary molecules from a trained run.
 
-:class:`Potential` loads a run directory written by the trainer (plan §1.7):
+:class:`Potential` loads a run directory written by the trainer (:mod:`lrmlp.run`):
 the resolved configuration (``config.json``), the padding N_max^local /
 N_max^long of the training dataset (``dataset.json``) and the weights of one
 checkpoint. :meth:`Potential.predict` then

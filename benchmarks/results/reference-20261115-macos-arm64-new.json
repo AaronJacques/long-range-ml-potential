@@ -35,6 +35,8 @@
     "numpy": "1.26.4",
     "git_sha": "2ff3f844de543301cf9642bdd276bad16130fd3d",
     "git_dirty_src_or_benchmarks": true,
+    "measured_tree": "6090d439dbb53a78c15c767dda63a03ba0e1f9dc",
+    "measured_tree_note": "recorded afterwards, not measured again: the run used the uncommitted working tree of git_sha that became this commit (src/ and benchmarks/)",
     "legacy_ref": "9413bfd",
     "legacy_commit": "9413bfd17130166dca96f995b66c358019c6b35a",
     "tensorflow": "2.21.0",

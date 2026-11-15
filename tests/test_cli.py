@@ -1,4 +1,4 @@
-"""Tests for the ``lrmlp`` command line interface (T11)."""
+"""Tests for the ``lrmlp`` command line interface."""
 
 from __future__ import annotations
 
@@ -176,7 +176,7 @@ def test_lazy_command_without_module_exit_2(
 ) -> None:
     module = LAZY_COMMANDS[command]
     if _module_available(module):
-        pytest.skip(f"{module} is available; the working path is tested by T13")
+        pytest.skip(f"{module} is available; test_tuning.py / test_analysis.py test it")
     argv = {
         "tune": ["tune", "--config", "c.toml", "--space", "s.toml", "--dry-run"],
         "plot-log": ["plot-log", "--log", "log.csv"],
@@ -299,7 +299,7 @@ def test_evaluate_json(pipeline: Pipeline) -> None:
 
 
 def test_evaluate_json_vs_run_file(pipeline: Pipeline) -> None:
-    """C4-F31 (docs/data-format.md): the run file = ``--json OUT`` + dataset, batch_size."""
+    """docs/data-format.md: the run file = ``--json OUT`` + dataset, batch_size."""
     metrics = json.loads(pipeline.eval_json.read_text())
     stored = json.loads((pipeline.run / "evaluation_test_1.json").read_text())
     assert set(stored) - set(metrics) == {"dataset", "batch_size"}
@@ -346,7 +346,7 @@ def test_evaluate_rejects_other_dataset(
     capsys: pytest.CaptureFixture[str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """C3-F24: another split seed is refused unless --allow-dataset-mismatch is given."""
+    """Another split seed is refused unless --allow-dataset-mismatch is given."""
     config = str(fixtures_dir / "configs" / "smoke.toml")
     other = tmp_path / "ds7"
     argv = ["prepare", "-c", config, "-o", str(other), "--workers", "1"]
@@ -366,7 +366,7 @@ def test_evaluate_rejects_other_dataset(
 
 
 def test_predict_workers_identical(pipeline: Pipeline, tmp_path: Path) -> None:
-    """C3-F27: --workers 2 gives the same output file content as the serial default."""
+    """--workers 2 gives the same output file content as the serial default."""
     out = tmp_path / "pred2.npz"
     argv = ["predict", "--run", str(pipeline.run), "-i", str(pipeline.workdir / "in.npz")]
     assert cli.main([*argv, "-o", str(out), "--workers", "2"]) == 0
@@ -490,3 +490,18 @@ def test_subprocess_chain_with_spawn_workers(fixtures_dir: Path, tmp_path: Path)
         assert out["E"].shape == (3,)
     info = json.loads(lrmlp("info", "--dataset", "ds", "--json").stdout)
     assert info["splits"]["train"]["n_molecules"] == 48
+
+
+def test_plot_log_logs_written_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    import types
+
+    written = [tmp_path / "a.pdf", tmp_path / "b.pdf"]
+    module = types.ModuleType("fake")
+    module.plot_training_log = lambda *a: written  # type: ignore[attr-defined]
+    monkeypatch.setattr(cli, "_lazy", lambda mod, fn: getattr(module, fn))
+    with caplog.at_level("INFO", logger="lrmlp"):
+        assert cli.main(["plot-log", "--log", str(tmp_path / "log.csv")]) == 0
+    assert f"wrote {written[0]}, {written[1]}" in caplog.text
+    assert "PosixPath" not in caplog.text

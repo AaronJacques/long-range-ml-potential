@@ -87,7 +87,7 @@ Overall: **PASSED** (full workload).
 
 Gain of `steps_per_execution = 8` over 1: +20 % without XLA, +30 % with XLA.
 
-Rule: a default changes only with a gain of at least 15 % and a passed equivalence check (plan section 4.4). The benchmark itself never changes defaults. Settings of the measured code: TrainConfig default `steps_per_execution = 8`, `jit_compile = false`; thesis presets `steps_per_execution = 8`, `jit_compile = true`.
+Rule: a default changes only with a gain of at least 15 % and a passed equivalence check. The benchmark itself never changes defaults. Settings of the measured code: TrainConfig default `steps_per_execution = 8`, `jit_compile = false`; thesis presets `steps_per_execution = 8`, `jit_compile = true`.
 
 * `train.jit_compile`: gain +77 % / +91 % (K = 1 / 8), equivalence passed → **recommend `jit_compile = true`** (where it is set: see the settings above).
 * `train.steps_per_execution`: gain +20 %, equivalence passed → **recommend `steps_per_execution = 8`**.
@@ -106,19 +106,21 @@ XLA compiles the step once per input shape. The atom axis is `None` in the signa
 <!-- BEGIN MANUAL ANALYSIS -->
 ### Analysis
 
-**Measurement conditions.** Final reference measurement of checkpoint C4 (code with
-the BLAS-thread limit of the descriptor workers and the new execution defaults). No
+**Measurement conditions.** Final reference measurement of the code of commit
+`6090d43` (with the BLAS-thread limit of the descriptor workers and the new execution defaults). No
 other heavy job ran: the 1-minute load average was 1.3 (new) and 3.0 (legacy) at the
 start, and the measurement itself adds about 2-3 (parallel suites, TensorFlow
 threads). The 15-minute average (5-6) still contains an earlier control run. The
 repetitions spread by ≤ 12 % (`times_s`). A first full run ten minutes earlier gave the
 same picture (training 2.36× instead of 2.28× with the preset settings, inference from
 descriptors 8.2× instead of 7.5×; files not kept). Both runs used the working tree of
-the C4 fix commit before it was committed, hence "uncommitted changes: True" with the
-git SHA of the parent commit.
+commit `6090d43` before it was committed, hence "uncommitted changes: True" with the
+git SHA of its parent `2ff3f84`. The field `measured_tree` of both result files names
+`6090d43` as the measured code state; it was recorded afterwards, without measuring
+again. Future reference runs should be made from a committed state.
 
-**Missed targets, stated plainly.** Six of the targets of plan section 4.6 are still
-missed: preprocessing of the aspirin-like molecule in one process (16.8× instead of
+**Missed targets, stated plainly.** Six of the speed targets of the refactoring are
+still missed: preprocessing of the aspirin-like molecule in one process (16.8× instead of
 20×), bytes on disk for both molecules (0.45× / 0.47× instead of 3× smaller), the
 input pipeline (1.15× instead of 10×), training with the `TrainConfig` default
 `steps_per_execution = 8` without XLA (1.20× instead of 1.5×) and inference from
@@ -132,11 +134,11 @@ kernel is vectorized per molecule (`compute_descriptors`, no Python loop over at
 pairs). For the 21-atom aspirin-like molecule a frame takes about 0.26 ms against
 4.3 ms in the legacy `create_grid` + `create_matrices` + pandas path. At this size a
 frame is about 20 NumPy calls on tiny arrays, so the fixed per-call overhead of NumPy
-dominates; more speed would need vectorization *across* frames, which is not part of
-the plan. For the 87-atom stachyose-like molecule the BLAS products of
+dominates; more speed would need vectorization *across* frames, which was not
+attempted. For the 87-atom stachyose-like molecule the BLAS products of
 `grid.cell_aggregates` dominate; there the target is met.
 
-**Preprocessing and inference with several processes (C4-K3).** The descriptor
+**Preprocessing and inference with several processes.** The descriptor
 workers (`build_dataset`, `Potential.predict(n_workers > 1)`) now start with one
 BLAS/OpenMP thread each (`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, … set only while
 the workers are spawned; the parent process keeps its settings). Before, every worker
@@ -145,23 +147,23 @@ machine. Control run, stachyose-like 200 frames, 10 workers, same machine:
 
 | BLAS threads per worker | median of 3 builds | mol/s |
 |---|---|---|
-| default (before C4) | 24.98 s | 8 |
-| 1 (C4) | 0.44 s | 453 |
+| default (before the limit) | 24.98 s | 8 |
+| 1 (current code) | 0.44 s | 453 |
 | (1 process, for comparison) | 0.71 s | 282 |
 
 In the reference run the parallel build is now faster than the serial one
-(stachyose-like 0.46 s vs 0.68 s, aspirin-like 0.44 s vs 0.51 s; before C4: 26.4 s and
+(stachyose-like 0.46 s vs 0.68 s, aspirin-like 0.44 s vs 0.51 s; before the limit: 26.4 s and
 1.1 s). With these small workloads the start of 10 "spawn" processes takes most of the time (≈ 0.4 s, estimated from
 the aspirin-like build: 0.44 s in parallel for 0.51 s of serial work), which is also why `Potential.predict` with 10 workers on 1000
 small molecules (2 061 mol/s) is still slower than with one process (2 708 mol/s;
-before C4: 824 mol/s). Several workers pay off for large datasets, not for a few
+before the limit: 824 mol/s). Several workers pay off for large datasets, not for a few
 thousand small frames.
 
 **Bytes per molecule on disk (0.45× instead of ≥ 3× smaller).** The legacy pickles
 are gzip-compressed, and gzip removes most of the zero padding of the legacy arrays.
 The new format stores uncompressed `.npy` files on purpose, so that the splits can be
 memory-mapped and read without unpacking. In RAM, which is the limiting resource in
-the thesis setting (26.8 GB of legacy features for stachyose, plan section 4.1), the
+the thesis setting (26.8 GB of legacy features for stachyose), the
 new format is 8.8× (aspirin-like) and 10× (stachyose-like) smaller, so that target is
 met. A compressed archive copy would fix the disk ratio but not the working-set size.
 
@@ -176,8 +178,8 @@ fastest training step consumes (720 steps/s).
 **Training (default 1.20×, presets 2.28×).** With |B| = 1 a step is the forward and
 backward pass of one 21-atom molecule (≈ 3 ms). The legacy step was already a
 `tf.function`, so removing the host overhead (no `tf.constant` per step, no per-step
-`.numpy()`, P13-P15) only brings the plain step to the legacy rate (0.99×). The
-measures of the plan pay off through the two execution options: `steps_per_execution
+`.numpy()`) only brings the plain step to the legacy rate (0.99×). The
+speed-ups come from the two execution options: `steps_per_execution
 = 8` +20 % (+30 % with XLA), `jit_compile = true` +77 % / +91 %, together 2.28× the
 legacy rate. Validation profits from batching (5.0×).
 
@@ -188,7 +190,7 @@ longer dominated by call overhead but by the forward pass itself; this was not
 optimized further. From positions the end-to-end rate is 15.6× the legacy
 `create_dataset` + `evaluate_model` path; the descriptors (≈ 4 100 mol/s) now dominate.
 
-**Decision on the execution defaults (C4-K4).** Conditions: `steps_per_execution = 8`
+**Decision on the execution defaults.** Conditions: `steps_per_execution = 8`
 bit-identical to 1, and XLA with K = 8 at least 1.5× the legacy rate with a passed
 equivalence check. Both hold (max weight difference 0.0 after one epoch; 2.28×;
 equivalence passed), so:
@@ -256,11 +258,12 @@ equivalence passed), so:
 | TF intra-op threads (0 = default) | `0` | `0` |
 | git SHA (working tree) | `2ff3f844de543301cf9642bdd276bad16130fd3d` | `2ff3f844de543301cf9642bdd276bad16130fd3d` |
 | uncommitted changes in src/ or benchmarks/ | `True` | `True` |
+| measured code state (commit) | `6090d439dbb53a78c15c767dda63a03ba0e1f9dc` | `6090d439dbb53a78c15c767dda63a03ba0e1f9dc` |
 | legacy commit | `9413bfd17130166dca96f995b66c358019c6b35a` | `9413bfd17130166dca96f995b66c358019c6b35a` |
 
 ## Mixed precision
 
-Mixed precision is not used and not benchmarked (plan section 4.4). The molecule energy
+Mixed precision is not used and not benchmarked. The molecule energy
 is the sum of the atomic energies and has a magnitude of |E| ≈ 4·10⁵ kcal/mol for
 aspirin. float16 overflows at 65 504; bfloat16 has 8 significand bits, i.e. a
 resolution of about 2·10³ kcal/mol at that magnitude, three orders of magnitude above

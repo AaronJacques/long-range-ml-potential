@@ -1,4 +1,4 @@
-"""Static checks of the notebooks under ``notebooks/`` (T16, B26).
+"""Static checks of the notebooks under ``notebooks/`` (legacy defect B10: no hard-coded paths).
 
 The notebooks are committed without outputs and without machine-specific paths, and
 they may only call ``lrmlp`` functions that exist. Nothing is executed: the import

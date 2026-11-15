@@ -219,7 +219,7 @@ runs/<name>-YYYYmmdd-HHMMSS/
 ├── config.json                      resolved configuration
 ├── dataset.json                     dataset metadata + "path"
 ├── training_log.csv                 one row per epoch
-├── tb/                              TensorBoard event files
+├── tb/                              TensorBoard event files (only with TensorBoard)
 ├── checkpoints/epoch_0001.weights.h5
 ├── best.json                        {"epoch": …, "val_energy_mse": …}
 └── evaluation_<split>_<epoch>.json  written by lrmlp evaluate
@@ -236,7 +236,9 @@ All JSON files are UTF-8 with sorted keys and are written atomically
   dataset directory). `lrmlp evaluate` and `lrmlp predict` take the padding
   N_max and the dataset location from it.
 - `tb/`: TensorBoard scalars of every log column per epoch and
-  `step/train_loss` every `train.log_every_steps` steps.
+  `step/train_loss` every `train.log_every_steps` steps. Written only if
+  TensorBoard is installed (extra `tune`); without it there is no `tb/`, and
+  training logs one INFO line saying so.
 
 ### `training_log.csv`
 

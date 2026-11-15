@@ -1,4 +1,4 @@
-"""Training loop (T09): run layout, logging, model selection, dropout, forces, determinism.
+"""Training loop: run layout, logging, model selection, dropout, forces, determinism.
 
 All runs use ``tests/fixtures/configs/smoke.toml`` (48 training and 6 validation
 molecules of 21 atoms) and write into ``tmp_path`` only.
@@ -93,7 +93,7 @@ def test_run_layout_and_log_columns(dataset_dir: Path, tmp_path: Path) -> None:
 
 
 def test_learning_rate_column_is_rate_at_epoch_end(dataset_dir: Path, tmp_path: Path) -> None:
-    """C3-F26: ``learning_rate`` is η(t) with t = steps after the epoch, as documented."""
+    """``learning_rate`` is η(t) with t = steps after the epoch, as documented."""
     doc = log_columns.__doc__ or ""
     assert "``learning_rate``" in doc and "**end** of the epoch" in doc
     trainer = Trainer(_cfg("train.epochs=2"), dataset_dir, tmp_path / "run")
@@ -200,7 +200,7 @@ def test_best_checkpoint_reproduces_best_validation(dataset_dir: Path, tmp_path:
 def test_failed_checkpoint_keeps_best_json_valid(
     dataset_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """C3-F25: a checkpoint write that fails never leaves best.json pointing at it."""
+    """A checkpoint write that fails never leaves best.json pointing at it."""
     trainer = Trainer(_cfg("train.epochs=3"), dataset_dir, tmp_path / "run")
     _scripted_validation(trainer, [3.0, 1.0, 0.5])
     save = trainer.model.save_weights
@@ -309,7 +309,7 @@ def _fit_weights(dataset_dir: Path, run_dir: Path, *overrides: str) -> list[np.n
 
 @pytest.mark.parametrize("k", [4, 5, 8])
 def test_steps_per_execution_equivalent(dataset_dir: Path, tmp_path: Path, k: int) -> None:
-    # C4-K4: bit-identical, with dropout 0.2 (smoke.toml); 48 steps are no multiple of 5.
+    # Bit-identical, with dropout 0.2 (smoke.toml); 48 steps are no multiple of 5.
     single = _fit_weights(dataset_dir, tmp_path / "k1", "train.steps_per_execution=1")
     multi = _fit_weights(dataset_dir, tmp_path / f"k{k}", f"train.steps_per_execution={k}")
     for a, b in zip(single, multi, strict=True):
@@ -453,11 +453,11 @@ def test_deterministic_runs_identical(dataset_dir: Path, tmp_path: Path) -> None
         np.testing.assert_array_equal(outs[0][key], outs[1][key])
 
 
-# --------------------------------------------------------------------------- 11. C4-K4 defaults
+# --------------------------------------------------------------------------- 11. execution defaults
 
 
 def test_execution_defaults() -> None:
-    """C4-K4: K = 8 everywhere; XLA only in the four thesis presets."""
+    """K = 8 everywhere; XLA only in the four thesis presets."""
     from lrmlp.config import TrainConfig
 
     assert (TrainConfig().steps_per_execution, TrainConfig().jit_compile) == (8, False)
@@ -491,7 +491,7 @@ def test_xla_probe_reports_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_jit_compile_falls_back_without_xla(
     dataset_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: Any
 ) -> None:
-    """C4-K4: without XLA the trainer warns, trains without XLA and records it."""
+    """Without XLA the trainer warns, trains without XLA and records it."""
     import lrmlp.training
 
     monkeypatch.setattr(lrmlp.training, "xla_available", lambda: (False, "probe failed"))
@@ -503,7 +503,7 @@ def test_jit_compile_falls_back_without_xla(
     assert trainer.fit().steps == 48
 
 
-# --------------------------------------------------------------------------- 12. C4-K5 eager
+# --------------------------------------------------------------------------- 12. eager
 
 
 @pytest.mark.parametrize("forces", [False, True])
@@ -550,3 +550,38 @@ def test_local_only_model_and_eval_batch_size(dataset_dir: Path, tmp_path: Path)
         many.validate()["val_energy_mse"], rel=1e-6
     )
     assert one.fit().steps == 48
+
+
+# ------------------------------------------------------------------- 13. optional TensorBoard
+
+
+def test_training_without_tensorboard(
+    dataset_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Without TensorBoard: no tb/, no tf.summary call, one INFO line, same log and best."""
+    import tensorflow as tf
+
+    import lrmlp.run
+
+    with_tb = train(_cfg(), dataset_dir=dataset_dir, run_dir=tmp_path / "with")
+
+    def no_summary(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("tf.summary must not be used without TensorBoard")
+
+    monkeypatch.setattr(lrmlp.run, "tensorboard_available", lambda: False)
+    monkeypatch.setattr(tf.summary, "scalar", no_summary)
+    monkeypatch.setattr(tf.summary, "create_file_writer", no_summary)
+    with caplog.at_level(logging.INFO, logger="lrmlp"):
+        result = train(_cfg(), dataset_dir=dataset_dir, run_dir=tmp_path / "without")
+    run = RunDirectory(result.run_dir)
+    assert not run.tb_dir.exists()
+    assert run.log_path.is_file() and run.best_path.is_file()
+    assert run.list_checkpoints()
+    notes = [r for r in caplog.records if "TensorBoard is not installed" in r.getMessage()]
+    assert len(notes) == 1 and notes[0].levelno == logging.INFO
+    assert result.best_epoch == with_tb.best_epoch
+    strip = [{k: v for k, v in row.items() if k != "seconds"} for row in result.history]
+    assert strip == [{k: v for k, v in row.items() if k != "seconds"} for row in with_tb.history]

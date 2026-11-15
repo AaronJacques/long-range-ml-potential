@@ -1,4 +1,4 @@
-"""Tests of the figures in ``lrmlp.analysis`` (T13, B17, B18)."""
+"""Tests of the figures in ``lrmlp.analysis`` (legacy defects B17, B18)."""
 
 from __future__ import annotations
 
