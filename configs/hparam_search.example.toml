@@ -1,0 +1,36 @@
+# Hyperparameter search space of the legacy HyperparameterTester.py@9413bfd (B04),
+# reproduced exactly: 3·4·4·4·3·3·3·3 = 15 552 combinations.
+#
+# That is far too many to train completely: use --max-trials, e.g.
+#   lrmlp tune --config configs/aspirin.toml --space configs/hparam_search.example.toml \
+#              --max-trials 10
+#   lrmlp tune ... --dry-run          # only count and list the combinations
+#
+# Format: [space] maps dotted configuration keys (as for --set) to lists of values;
+# [[linked]] sets several keys to the same value on one axis. Every key and every
+# HParams name occurs once. The last axis varies fastest. The metric is the best
+# validation energy MSE (kcal/mol)^2 of each trial (thesis p. 52).
+
+[space]
+# eta_init, Eq. 4.22 (legacy "initial_learning_rate")
+"train.learning_rate" = [1e-2, 1e-3, 1e-4]
+# s of the learning-rate decay, Eq. 4.22 (legacy "lr_decay_steps")
+"train.lr_decay_steps" = [1e3, 1e4, 1e5, 1e6]
+# decay steps of the loss-weight schedule p_E/p_F (legacy "decay_steps", which the
+# legacy code registered under the duplicate name "lr_decay_steps")
+"train.loss_weight_decay_steps" = [1e3, 1e4, 1e5, 1e6]
+# loss weights of Eq. 4.10 (legacy names)
+"train.p_energy_start" = [0.01, 0.05, 0.1]
+"train.p_energy_limit" = [1.0, 2.0, 3.0]
+"train.p_force_start" = [100.0, 500.0, 1000.0]
+"train.p_force_limit" = [1.0, 2.0, 3.0]
+# The legacy search trained the force model; without it the p_* axes have no effect.
+# The force mode is experimental (deviation A09) and not the method of the thesis.
+# One value only, so the number of combinations is unchanged.
+"model.predict_forces" = [true]
+
+[[linked]]
+# legacy "decay_rate" acted on the learning rate AND on the loss-weight schedule
+name = "decay_rate"
+keys = ["train.lr_decay_rate", "train.loss_weight_decay_rate"]
+values = [0.96, 0.97, 0.98, 0.99]
